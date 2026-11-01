@@ -1,0 +1,297 @@
+{
+	"info": {
+		"_postman_id": "cargotrace-api-v1",
+		"name": "CargoTrace REST API Collection",
+		"description": "Complete REST API collection for CargoTrace Global Shipment Visibility & Tracking Platform (Web Programming 2 UAS Final Project).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "POST Register Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Jane Doe\",\n    \"email\": \"jane.doe@shipper.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"company_name\": \"Apex Trans Global Ltd\",\n    \"phone\": \"+628123456789\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/register", "host": ["{{baseUrl}}"], "path": ["register"] }
+					}
+				},
+				{
+					"name": "POST Login (Operator)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"operator@cargotrace.test\",\n    \"password\": \"password\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+					}
+				},
+				{
+					"name": "GET Current Authenticated User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/user", "host": ["{{baseUrl}}"], "path": ["user"] }
+					}
+				},
+				{
+					"name": "POST Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Public Quick Tracking",
+			"item": [
+				{
+					"name": "GET Public Tracking by Number",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" }
+						],
+						"url": {
+							"raw": "{{baseUrl}}/public/track/CT-2026-SEA-8841",
+							"host": ["{{baseUrl}}"],
+							"path": ["public", "track", "CT-2026-SEA-8841"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Shipments",
+			"item": [
+				{
+					"name": "GET All Shipments (Filtered & Paginated)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{baseUrl}}/shipments?status=IN_TRANSIT&per_page=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["shipments"],
+							"query": [
+								{ "key": "status", "value": "IN_TRANSIT" },
+								{ "key": "per_page", "value": "10" }
+							]
+						}
+					}
+				},
+				{
+					"name": "POST Create New Shipment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"shipment_number\": \"CT-2026-POSTMAN-01\",\n    \"customer_id\": 3,\n    \"carrier_id\": 1,\n    \"origin_id\": 1,\n    \"destination_id\": 3,\n    \"cargo_type\": \"ELECTRONICS\",\n    \"total_weight_kg\": 12500,\n    \"total_volume_cbm\": 24.5,\n    \"expected_departure\": \"2026-11-05 08:00:00\",\n    \"expected_arrival\": \"2026-11-20 18:00:00\",\n    \"notes\": \"Test creation via Postman collection.\",\n    \"items\": [\n        {\n            \"item_description\": \"Smart Sensor Modules\",\n            \"quantity\": 2000,\n            \"weight_kg\": 6200,\n            \"hs_code\": \"8543.70\"\n        }\n    ]\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/shipments", "host": ["{{baseUrl}}"], "path": ["shipments"] }
+					}
+				},
+				{
+					"name": "GET Shipment Details by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/shipments/1", "host": ["{{baseUrl}}"], "path": ["shipments", "1"] }
+					}
+				},
+				{
+					"name": "PATCH Update Shipment",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"notes\": \"Updated operational notes via Postman.\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/shipments/1", "host": ["{{baseUrl}}"], "path": ["shipments", "1"] }
+					}
+				},
+				{
+					"name": "DELETE Shipment (Admin Only)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/shipments/4", "host": ["{{baseUrl}}"], "path": ["shipments", "4"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Tracking Checkpoints",
+			"item": [
+				{
+					"name": "GET Tracking Timeline for Shipment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/shipments/1/tracking", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "tracking"] }
+					}
+				},
+				{
+					"name": "POST Log Checkpoint Event",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"event_type\": \"IN_TRANSIT\",\n    \"status\": \"IN_TRANSIT\",\n    \"location_name\": \"Indian Ocean Transit Checkpoint\",\n    \"latitude\": 5.823,\n    \"longitude\": 80.124,\n    \"event_time\": \"2026-11-01 12:00:00\",\n    \"description\": \"Vessel steaming at 19 knots in fair weather conditions.\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/shipments/1/tracking", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "tracking"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Incident & Exceptions Management",
+			"item": [
+				{
+					"name": "GET Exceptions for Shipment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/shipments/1/exceptions", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "exceptions"] }
+					}
+				},
+				{
+					"name": "POST Log Shipment Exception",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"exception_type\": \"PORT_CONGESTION\",\n    \"severity\": \"MEDIUM\",\n    \"description\": \"Berth congestion delayed unloading by 12 hours.\",\n    \"delay_impact_hours\": 12\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/shipments/1/exceptions", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "exceptions"] }
+					}
+				},
+				{
+					"name": "PATCH Resolve Exception",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"resolution_notes\": \"Customs release granted following secondary cargo inspection.\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/exceptions/1", "host": ["{{baseUrl}}"], "path": ["exceptions", "1"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Master Data (Carriers & Locations)",
+			"item": [
+				{
+					"name": "GET Carriers List",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/carriers", "host": ["{{baseUrl}}"], "path": ["carriers"] }
+					}
+				},
+				{
+					"name": "GET Locations List",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": { "raw": "{{baseUrl}}/locations", "host": ["{{baseUrl}}"], "path": ["locations"] }
+					}
+				}
+			]
+		}
+	]
+}
