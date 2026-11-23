@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $etaService = new EtaService();
+        $etaService = new EtaService;
 
         // 1. Seed Users (Slide 5, 18, 19: Demo Accounts)
         $admin = User::firstOrCreate(['email' => 'admin@cargotrace.test'], [

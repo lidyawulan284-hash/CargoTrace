@@ -14,13 +14,14 @@ class LocationController extends Controller
     public function index(): View
     {
         $locations = Location::withCount(['outboundShipments', 'inboundShipments'])->orderBy('country')->orderBy('city')->paginate(15);
+
         return view('locations.index', compact('locations'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             abort(403);
         }
 

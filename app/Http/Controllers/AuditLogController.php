@@ -12,7 +12,7 @@ class AuditLogController extends Controller
     public function index(Request $request): View
     {
         $user = Auth::user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             abort(403, 'Unauthorized. Admin access required.');
         }
 

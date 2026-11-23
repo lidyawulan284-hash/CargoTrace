@@ -18,7 +18,9 @@ class EtaDelayEvaluationTest extends TestCase
     use RefreshDatabase;
 
     protected EtaService $etaService;
+
     protected ExceptionService $exceptionService;
+
     protected Shipment $shipment;
 
     protected function setUp(): void

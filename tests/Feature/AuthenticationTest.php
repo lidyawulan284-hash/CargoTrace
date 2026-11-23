@@ -27,6 +27,23 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_user_can_login_via_root_post(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'admin_root@cargotrace.test',
+            'password' => bcrypt('password123'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->post('/', [
+            'email' => 'admin_root@cargotrace.test',
+            'password' => 'password123',
+        ]);
+
+        $response->assertRedirect('/dashboard');
+        $this->assertAuthenticatedAs($user);
+    }
+
     public function test_invalid_login_is_rejected(): void
     {
         $user = User::factory()->create([
@@ -72,5 +89,113 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->getJson('/api/shipments');
         $response->assertStatus(401);
+    }
+
+    public function test_root_url_displays_login_page_for_guests(): void
+    {
+        $response = $this->get('/');
+        $response->assertStatus(200);
+        $response->assertSee('Login ke');
+        $response->assertSee('CargoTrace');
+        $response->assertSee('Masuk ke Akun');
+    }
+
+    public function test_authenticated_user_visiting_root_is_redirected_to_dashboard(): void
+    {
+        $user = User::factory()->create(['role' => 'operator']);
+
+        $response = $this->actingAs($user)->get('/');
+        $response->assertRedirect('/dashboard');
+    }
+
+    public function test_unauthenticated_user_accessing_dashboard_is_redirected_to_login(): void
+    {
+        $response = $this->get('/dashboard');
+        $response->assertRedirect('/');
+    }
+
+    public function test_admin_login_redirects_to_dashboard_with_role_access(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin_test@cargotrace.test',
+            'password' => bcrypt('password123'),
+            'role' => 'admin',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => 'admin_test@cargotrace.test',
+            'password' => 'password123',
+        ]);
+
+        $response->assertRedirect('/dashboard');
+        $this->assertAuthenticatedAs($admin);
+
+        $dashResponse = $this->actingAs($admin)->get('/dashboard');
+        $dashResponse->assertStatus(200);
+        $dashResponse->assertSee('Admin Operations Dashboard');
+    }
+
+    public function test_customer_login_redirects_to_dashboard_with_scoped_access(): void
+    {
+        $customer = User::factory()->create([
+            'email' => 'customer_test@cargotrace.test',
+            'password' => bcrypt('password123'),
+            'role' => 'customer',
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => 'customer_test@cargotrace.test',
+            'password' => 'password123',
+        ]);
+
+        $response->assertRedirect('/dashboard');
+        $this->assertAuthenticatedAs($customer);
+
+        $dashResponse = $this->actingAs($customer)->get('/dashboard');
+        $dashResponse->assertStatus(200);
+        $dashResponse->assertSee('Customer Cargo Dashboard');
+    }
+
+    public function test_user_can_logout_and_session_is_invalidated(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/logout');
+        $response->assertRedirect('/');
+        $this->assertGuest();
+    }
+
+    public function test_public_tracking_is_accessible_without_login(): void
+    {
+        $response = $this->get('/tracking');
+        $response->assertStatus(200);
+        $response->assertSee('Lacak Paket');
+    }
+
+    public function test_demo_accounts_can_login_with_default_password(): void
+    {
+        $this->seed();
+
+        $demoRoles = [
+            'admin@cargotrace.test' => 'Admin Operations Dashboard',
+            'operator@cargotrace.test' => 'Operator Dispatch Dashboard',
+            'customer@cargotrace.test' => 'Customer Cargo Dashboard',
+        ];
+
+        foreach ($demoRoles as $email => $expectedText) {
+            $response = $this->post('/login', [
+                'email' => $email,
+                'password' => 'password',
+            ]);
+
+            $response->assertRedirect('/dashboard');
+
+            $dashResponse = $this->get('/dashboard');
+            $dashResponse->assertStatus(200);
+            $dashResponse->assertSee($expectedText);
+
+            $this->post('/logout');
+            $this->assertGuest();
+        }
     }
 }

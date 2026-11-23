@@ -11,10 +11,15 @@ class ShipmentException extends Model
     use HasFactory;
 
     public const TYPE_CUSTOMS_HOLD = 'CUSTOMS_HOLD';
+
     public const TYPE_WEATHER_DELAY = 'WEATHER_DELAY';
+
     public const TYPE_PORT_CONGESTION = 'PORT_CONGESTION';
+
     public const TYPE_DAMAGED = 'DAMAGED';
+
     public const TYPE_MISROUTED = 'MISROUTED';
+
     public const TYPE_DOCUMENTATION_ISSUE = 'DOCUMENTATION_ISSUE';
 
     public const TYPES = [
@@ -27,7 +32,9 @@ class ShipmentException extends Model
     ];
 
     public const STATUS_OPEN = 'OPEN';
+
     public const STATUS_INVESTIGATING = 'INVESTIGATING';
+
     public const STATUS_RESOLVED = 'RESOLVED';
 
     public const STATUSES = [
@@ -37,8 +44,11 @@ class ShipmentException extends Model
     ];
 
     public const SEVERITY_LOW = 'LOW';
+
     public const SEVERITY_MEDIUM = 'MEDIUM';
+
     public const SEVERITY_HIGH = 'HIGH';
+
     public const SEVERITY_CRITICAL = 'CRITICAL';
 
     protected $fillable = [

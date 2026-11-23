@@ -48,7 +48,7 @@ class ShipmentApiController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only Operators or Admins can create shipments.',
@@ -99,10 +99,10 @@ class ShipmentApiController extends Controller
             'destination',
             'items',
             'trackingEvents.creator',
-            'exceptions.resolver'
+            'exceptions.resolver',
         ])->find($id);
 
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
@@ -110,7 +110,7 @@ class ShipmentApiController extends Controller
         }
 
         // Authorization check (Slide 13)
-        if (!$user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. You do not have permission to view this shipment.',
@@ -141,7 +141,7 @@ class ShipmentApiController extends Controller
     public function update(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -149,7 +149,7 @@ class ShipmentApiController extends Controller
         }
 
         $shipment = Shipment::find($id);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
@@ -190,7 +190,7 @@ class ShipmentApiController extends Controller
     public function destroy(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Admin privileges required to delete shipments.',
@@ -198,7 +198,7 @@ class ShipmentApiController extends Controller
         }
 
         $shipment = Shipment::find($id);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
@@ -211,7 +211,7 @@ class ShipmentApiController extends Controller
         AuditLogService::log(
             action: 'DELETE',
             entityType: 'Shipment',
-            entityId: (int)$id,
+            entityId: (int) $id,
             oldValues: $old,
             newValues: null
         );

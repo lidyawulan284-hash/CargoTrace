@@ -14,8 +14,8 @@ class EtaService
     public function evaluateDelay(Shipment $shipment): array
     {
         $expected = Carbon::parse($shipment->expected_arrival);
-        $estimated = $shipment->estimated_arrival 
-            ? Carbon::parse($shipment->estimated_arrival) 
+        $estimated = $shipment->estimated_arrival
+            ? Carbon::parse($shipment->estimated_arrival)
             : $expected->copy();
 
         // Calculate discrepancy in hours
@@ -42,7 +42,7 @@ class EtaService
                 $severity = 'HIGH';
                 $reason = "Critical transit delay ({$delayHours} hours), escalation notified.";
             }
-        } elseif (!$shipment->isTerminal() && now()->greaterThan($expected)) {
+        } elseif (! $shipment->isTerminal() && now()->greaterThan($expected)) {
             // Shipment is past expected arrival but not delivered
             $delayHours = (int) ceil($expected->diffInMinutes(now()) / 60);
             $isDelayed = true;
@@ -80,8 +80,8 @@ class EtaService
      */
     public function applyExceptionDelay(Shipment $shipment, int $impactHours, string $reason): void
     {
-        $currentEstimated = $shipment->estimated_arrival 
-            ? Carbon::parse($shipment->estimated_arrival) 
+        $currentEstimated = $shipment->estimated_arrival
+            ? Carbon::parse($shipment->estimated_arrival)
             : Carbon::parse($shipment->expected_arrival);
 
         $newEstimated = $currentEstimated->copy()->addHours($impactHours);

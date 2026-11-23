@@ -42,7 +42,7 @@ class TrackingService
                 ]);
             }
 
-            if (!$shipment->canTransitionTo($targetStatus)) {
+            if (! $shipment->canTransitionTo($targetStatus)) {
                 $allowed = implode(', ', Shipment::TRANSITIONS[$shipment->status] ?? []);
                 throw ValidationException::withMessages([
                     'status' => ["Invalid status transition from '{$shipment->status}' to '{$targetStatus}'. Allowed transitions: [{$allowed}]."],
@@ -72,7 +72,7 @@ class TrackingService
             if ($isTransitioning) {
                 $shipment->status = $targetStatus;
 
-                if ($targetStatus === Shipment::STATUS_IN_TRANSIT && !$shipment->actual_departure) {
+                if ($targetStatus === Shipment::STATUS_IN_TRANSIT && ! $shipment->actual_departure) {
                     $shipment->actual_departure = $eventTime;
                 }
 

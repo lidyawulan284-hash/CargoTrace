@@ -23,14 +23,14 @@ class ExceptionApiController extends Controller
         $user = $request->user();
 
         $shipment = Shipment::find($shipmentId);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
             ], 404);
         }
 
-        if (!$user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -53,7 +53,7 @@ class ExceptionApiController extends Controller
     public function store(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only Operators and Admins can log exceptions.',
@@ -61,7 +61,7 @@ class ExceptionApiController extends Controller
         }
 
         $shipment = Shipment::find($shipmentId);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
@@ -69,7 +69,7 @@ class ExceptionApiController extends Controller
         }
 
         $validated = $request->validate([
-            'exception_type' => ['required', 'string', 'in:' . implode(',', ShipmentException::TYPES)],
+            'exception_type' => ['required', 'string', 'in:'.implode(',', ShipmentException::TYPES)],
             'severity' => ['required', 'string', 'in:LOW,MEDIUM,HIGH,CRITICAL'],
             'description' => ['required', 'string'],
             'delay_impact_hours' => ['nullable', 'integer', 'min:0'],
@@ -92,7 +92,7 @@ class ExceptionApiController extends Controller
     public function resolve(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only Operators and Admins can resolve exceptions.',
@@ -100,7 +100,7 @@ class ExceptionApiController extends Controller
         }
 
         $exception = ShipmentException::find($id);
-        if (!$exception) {
+        if (! $exception) {
             return response()->json([
                 'success' => false,
                 'message' => 'Exception record not found.',

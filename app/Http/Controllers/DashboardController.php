@@ -24,16 +24,24 @@ class DashboardController extends Controller
         // Recent shipments
         $recentShipments = Shipment::query()
             ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent'])
-            ->when(!$user->canManageShipments(), fn($q) => $q->where('customer_id', $user->id))
+            ->when(! $user->canManageShipments(), fn ($q) => $q->where('customer_id', $user->id))
             ->orderBy('created_at', 'desc')
             ->take(6)
+            ->get();
+
+        // Shipments available for interactive Leaflet dashboard telematics map
+        $mapShipments = Shipment::query()
+            ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent'])
+            ->when(! $user->canManageShipments(), fn ($q) => $q->where('customer_id', $user->id))
+            ->orderBy('created_at', 'desc')
+            ->take(15)
             ->get();
 
         // Recent tracking activity feed
         $recentEvents = TrackingEvent::query()
             ->with(['shipment', 'creator'])
-            ->when(!$user->canManageShipments(), function ($q) use ($user) {
-                $q->whereHas('shipment', fn($sq) => $sq->where('customer_id', $user->id));
+            ->when(! $user->canManageShipments(), function ($q) use ($user) {
+                $q->whereHas('shipment', fn ($sq) => $sq->where('customer_id', $user->id));
             })
             ->orderBy('event_time', 'desc')
             ->take(6)
@@ -43,8 +51,8 @@ class DashboardController extends Controller
         $activeExceptions = ShipmentException::query()
             ->with(['shipment'])
             ->whereIn('status', [ShipmentException::STATUS_OPEN, ShipmentException::STATUS_INVESTIGATING])
-            ->when(!$user->canManageShipments(), function ($q) use ($user) {
-                $q->whereHas('shipment', fn($sq) => $sq->where('customer_id', $user->id));
+            ->when(! $user->canManageShipments(), function ($q) use ($user) {
+                $q->whereHas('shipment', fn ($sq) => $sq->where('customer_id', $user->id));
             })
             ->orderBy('detected_at', 'desc')
             ->take(5)
@@ -53,6 +61,7 @@ class DashboardController extends Controller
         return view('dashboard.index', compact(
             'metrics',
             'recentShipments',
+            'mapShipments',
             'recentEvents',
             'activeExceptions'
         ));

@@ -41,7 +41,7 @@ class ShipmentController extends Controller
     public function create(): View
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403, 'Unauthorized. Only logistics operators or administrators can create shipments.');
         }
 
@@ -56,7 +56,7 @@ class ShipmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403);
         }
 
@@ -91,7 +91,7 @@ class ShipmentController extends Controller
         $user = Auth::user();
 
         // Customer access control (Slide 5, 13)
-        if (!$user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
             abort(403, 'Forbidden. You do not have access to this shipment.');
         }
 
@@ -102,7 +102,7 @@ class ShipmentController extends Controller
             'destination',
             'items',
             'trackingEvents.creator',
-            'exceptions.resolver'
+            'exceptions.resolver',
         ]);
 
         // Weather integration for current location (Slide 9)
@@ -123,8 +123,8 @@ class ShipmentController extends Controller
         if ($shipment->origin) {
             $mapPoints[] = [
                 'type' => 'origin',
-                'name' => 'Origin: ' . $shipment->origin->name,
-                'city' => $shipment->origin->city . ', ' . $shipment->origin->country,
+                'name' => 'Origin: '.$shipment->origin->name,
+                'city' => $shipment->origin->city.', '.$shipment->origin->country,
                 'lat' => (float) $shipment->origin->latitude,
                 'lng' => (float) $shipment->origin->longitude,
                 'time' => $shipment->expected_departure->format('M d, Y H:i'),
@@ -136,7 +136,7 @@ class ShipmentController extends Controller
             if ($event->latitude && $event->longitude) {
                 $mapPoints[] = [
                     'type' => $event->is_exception ? 'exception' : 'waypoint',
-                    'name' => $event->event_type . ' - ' . $event->location_name,
+                    'name' => $event->event_type.' - '.$event->location_name,
                     'city' => $event->location_name,
                     'lat' => (float) $event->latitude,
                     'lng' => (float) $event->longitude,
@@ -150,8 +150,8 @@ class ShipmentController extends Controller
         if ($shipment->destination) {
             $mapPoints[] = [
                 'type' => 'destination',
-                'name' => 'Destination: ' . $shipment->destination->name,
-                'city' => $shipment->destination->city . ', ' . $shipment->destination->country,
+                'name' => 'Destination: '.$shipment->destination->name,
+                'city' => $shipment->destination->city.', '.$shipment->destination->country,
                 'lat' => (float) $shipment->destination->latitude,
                 'lng' => (float) $shipment->destination->longitude,
                 'time' => $shipment->expected_arrival->format('M d, Y H:i'),
@@ -175,7 +175,7 @@ class ShipmentController extends Controller
     public function edit(Shipment $shipment): View
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403);
         }
 
@@ -188,7 +188,7 @@ class ShipmentController extends Controller
     public function update(Request $request, Shipment $shipment): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403);
         }
 
@@ -220,7 +220,7 @@ class ShipmentController extends Controller
     public function destroy(Shipment $shipment): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             abort(403, 'Unauthorized. Admin role required to delete shipments.');
         }
 

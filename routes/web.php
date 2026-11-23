@@ -18,13 +18,24 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Public Tracking Portal & Landing Page
-Route::get('/', [PublicTrackingController::class, 'index'])->name('home');
+// =========================================================================
+// 1. DEFAULT ROUTE: URL '/' WAJIB MENAMPILKAN HALAMAN LOGIN (TUJUAN UTAMA)
+// =========================================================================
+Route::get('/', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/', [AuthController::class, 'login'])->name('login.post');
+Route::get('/login', [AuthController::class, 'showLogin']);
+Route::post('/login', [AuthController::class, 'login']);
 
-// Guest Authentication Routes
+// =========================================================================
+// 2. PUBLIC SHIPMENT TRACKING ("Lacak Tanpa Login")
+// =========================================================================
+Route::get('/tracking', [PublicTrackingController::class, 'index'])->name('tracking.public');
+Route::get('/public-tracking', [PublicTrackingController::class, 'index'])->name('home');
+
+// =========================================================================
+// 3. REGISTRATION (GUEST ONLY)
+// =========================================================================
 Route::middleware('guest')->group(function () {
-    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login']);
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
@@ -49,6 +60,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/shipments/{shipment}', [ShipmentController::class, 'destroy'])->name('shipments.destroy')->middleware('role:admin');
 
     // Tracking Event Submissions (Slide 7)
+    Route::get('/shipments/{shipment}/coordinates', [TrackingController::class, 'coordinates'])->name('shipments.coordinates');
     Route::post('/shipments/{shipment}/tracking', [TrackingController::class, 'store'])->name('tracking.store')->middleware('role:admin,operator');
 
     // Exceptions & Incident Resolutions (Slide 8)

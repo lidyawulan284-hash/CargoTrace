@@ -23,7 +23,7 @@ class LocationApiController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Admin privileges required.',

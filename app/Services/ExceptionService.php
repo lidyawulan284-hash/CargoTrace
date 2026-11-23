@@ -20,7 +20,7 @@ class ExceptionService
      */
     public function createException(Shipment $shipment, array $data, ?User $actor = null): ShipmentException
     {
-        return DB::transaction(function () use ($shipment, $data, $actor) {
+        return DB::transaction(function () use ($shipment, $data) {
             $impactHours = (int) ($data['delay_impact_hours'] ?? 0);
 
             $exception = ShipmentException::create([

@@ -15,10 +15,15 @@ class Shipment extends Model
     use HasFactory, SoftDeletes;
 
     public const STATUS_CREATED = 'CREATED';
+
     public const STATUS_BOOKED = 'BOOKED';
+
     public const STATUS_PICKED_UP = 'PICKED_UP';
+
     public const STATUS_IN_TRANSIT = 'IN_TRANSIT';
+
     public const STATUS_DELIVERED = 'DELIVERED';
+
     public const STATUS_CANCELLED = 'CANCELLED';
 
     public const STATUSES = [
@@ -120,6 +125,7 @@ class Shipment extends Model
         if ($user->canManageShipments()) {
             return $query;
         }
+
         return $query->where('customer_id', $user->id);
     }
 
@@ -137,6 +143,7 @@ class Shipment extends Model
     public function canTransitionTo(string $targetStatus): bool
     {
         $allowed = self::TRANSITIONS[$this->status] ?? [];
+
         return in_array($targetStatus, $allowed, true);
     }
 
@@ -150,18 +157,19 @@ class Shipment extends Model
         $latest = $this->latestTrackingEvent;
         if ($latest && $latest->latitude && $latest->longitude) {
             return [
-                'lat' => (float)$latest->latitude,
-                'lng' => (float)$latest->longitude,
+                'lat' => (float) $latest->latitude,
+                'lng' => (float) $latest->longitude,
                 'location' => $latest->location_name,
             ];
         }
         if ($this->origin) {
             return [
-                'lat' => (float)$this->origin->latitude,
-                'lng' => (float)$this->origin->longitude,
+                'lat' => (float) $this->origin->latitude,
+                'lng' => (float) $this->origin->longitude,
                 'location' => $this->origin->name,
             ];
         }
+
         return null;
     }
 }

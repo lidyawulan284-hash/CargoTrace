@@ -7,7 +7,6 @@ use App\Models\Location;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Services\TrackingService;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -17,9 +16,13 @@ class ShipmentLifecycleTest extends TestCase
     use RefreshDatabase;
 
     protected User $operator;
+
     protected Carrier $carrier;
+
     protected Location $origin;
+
     protected Location $destination;
+
     protected TrackingService $trackingService;
 
     protected function setUp(): void

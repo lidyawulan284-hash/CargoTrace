@@ -17,6 +17,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
+
         return view('auth.login');
     }
 
@@ -30,20 +31,29 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
+            $user = Auth::user();
+
             AuditLogService::log(
                 action: 'LOGIN',
                 entityType: 'User',
-                entityId: Auth::id(),
+                entityId: $user->id,
                 oldValues: null,
-                newValues: ['email' => Auth::user()->email]
+                newValues: ['email' => $user->email, 'role' => $user->role]
             );
 
+            $roleDashboardName = match ($user->role) {
+                'admin' => 'Admin Dashboard',
+                'operator' => 'Operator Dashboard',
+                'customer' => 'Customer Dashboard',
+                default => 'Dashboard',
+            };
+
             return redirect()->intended(route('dashboard'))
-                ->with('success', 'Welcome back, ' . Auth::user()->name . '!');
+                ->with('success', "Selamat datang, {$user->name}! Anda berhasil masuk ke {$roleDashboardName}.");
         }
 
         return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
+            'email' => 'Alamat email atau kata sandi tidak cocok dengan data kami.',
         ])->onlyInput('email');
     }
 
@@ -52,6 +62,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
+
         return view('auth.register');
     }
 
@@ -95,7 +106,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('info', 'You have been logged out.');
+        return redirect()->route('login')->with('info', 'Sesi telah diakhiri. Anda telah keluar dari sistem.');
     }
 
     /**
@@ -115,10 +126,18 @@ class AuthController extends Controller
         if ($user) {
             Auth::login($user);
             request()->session()->regenerate();
+
+            $roleDashboardName = match ($user->role) {
+                'admin' => 'Admin Dashboard (Akses Penuh)',
+                'operator' => 'Operator Dashboard (Operasional & Telematika)',
+                'customer' => 'Customer Dashboard (Kargo Pelanggan)',
+                default => 'Dashboard',
+            };
+
             return redirect()->route('dashboard')
-                ->with('success', "Logged in as demo {$user->role} ({$user->name}).");
+                ->with('success', "Berhasil masuk ke {$roleDashboardName} sebagai {$user->name}.");
         }
 
-        return redirect()->route('login')->with('error', 'Demo user not seeded yet.');
+        return redirect()->route('login')->with('error', 'Akun demo pengguna belum tersedia di database.');
     }
 }

@@ -22,14 +22,14 @@ class TrackingApiController extends Controller
         $user = $request->user();
 
         $shipment = Shipment::with(['origin', 'destination'])->find($shipmentId);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',
             ], 404);
         }
 
-        if (!$user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -49,8 +49,23 @@ class TrackingApiController extends Controller
                 'is_delayed' => $shipment->is_delayed,
                 'delay_hours' => $shipment->delay_hours,
                 'delay_severity' => $shipment->delay_severity,
-                'origin' => $shipment->origin?->name,
-                'destination' => $shipment->destination?->name,
+                'origin' => [
+                    'id' => $shipment->origin?->id,
+                    'name' => $shipment->origin?->name,
+                    'city' => $shipment->origin?->city,
+                    'country' => $shipment->origin?->country,
+                    'latitude' => (float) $shipment->origin?->latitude,
+                    'longitude' => (float) $shipment->origin?->longitude,
+                ],
+                'destination' => [
+                    'id' => $shipment->destination?->id,
+                    'name' => $shipment->destination?->name,
+                    'city' => $shipment->destination?->city,
+                    'country' => $shipment->destination?->country,
+                    'latitude' => (float) $shipment->destination?->latitude,
+                    'longitude' => (float) $shipment->destination?->longitude,
+                ],
+                'current_coordinates' => $shipment->getCurrentCoordinates(),
                 'events' => $events,
             ],
         ]);
@@ -62,7 +77,7 @@ class TrackingApiController extends Controller
     public function store(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only Operators and Admins can add tracking events.',
@@ -70,7 +85,7 @@ class TrackingApiController extends Controller
         }
 
         $shipment = Shipment::find($shipmentId);
-        if (!$shipment) {
+        if (! $shipment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Shipment not found.',

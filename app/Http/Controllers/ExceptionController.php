@@ -18,12 +18,12 @@ class ExceptionController extends Controller
     public function store(Request $request, Shipment $shipment): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'exception_type' => ['required', 'string', 'in:' . implode(',', ShipmentException::TYPES)],
+            'exception_type' => ['required', 'string', 'in:'.implode(',', ShipmentException::TYPES)],
             'severity' => ['required', 'string', 'in:LOW,MEDIUM,HIGH,CRITICAL'],
             'description' => ['required', 'string'],
             'delay_impact_hours' => ['nullable', 'integer', 'min:0'],
@@ -39,7 +39,7 @@ class ExceptionController extends Controller
     public function resolve(Request $request, ShipmentException $exception): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->canManageShipments()) {
+        if (! $user->canManageShipments()) {
             abort(403);
         }
 

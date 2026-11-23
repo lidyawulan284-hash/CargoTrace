@@ -15,13 +15,21 @@ class ShipmentApiAndAuthorizationTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $operator;
+
     protected User $customer1;
+
     protected User $customer2;
+
     protected Carrier $carrier;
+
     protected Location $origin;
+
     protected Location $destination;
+
     protected Shipment $shipment1;
+
     protected Shipment $shipment2;
 
     protected function setUp(): void
@@ -124,5 +132,53 @@ class ShipmentApiAndAuthorizationTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.shipment_number', 'CT-CUST1-001');
+    }
+
+    public function test_tracking_api_returns_spatial_coordinates_for_origin_destination_and_current_fix(): void
+    {
+        Sanctum::actingAs($this->customer1);
+
+        $response = $this->getJson("/api/shipments/{$this->shipment1->id}/tracking");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.shipment_number', 'CT-CUST1-001')
+            ->assertJsonStructure([
+                'success',
+                'data' => [
+                    'shipment_number',
+                    'current_status',
+                    'is_delayed',
+                    'delay_hours',
+                    'delay_severity',
+                    'origin' => ['name', 'city', 'latitude', 'longitude'],
+                    'destination' => ['name', 'city', 'latitude', 'longitude'],
+                    'current_coordinates',
+                    'events',
+                ],
+            ]);
+    }
+
+    public function test_dashboard_telematics_coordinates_endpoint_returns_json(): void
+    {
+        $this->actingAs($this->operator);
+
+        $response = $this->getJson("/shipments/{$this->shipment1->id}/coordinates");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.shipment_number', 'CT-CUST1-001')
+            ->assertJsonPath('data.origin.name', 'Jakarta')
+            ->assertJsonPath('data.destination.name', 'Rotterdam');
+    }
+
+    public function test_dashboard_telematics_coordinates_endpoint_rejects_unauthorized_customer(): void
+    {
+        $this->actingAs($this->customer2);
+
+        // customer2 tries to access customer1's coordinates
+        $response = $this->getJson("/shipments/{$this->shipment1->id}/coordinates");
+
+        $response->assertStatus(403);
     }
 }

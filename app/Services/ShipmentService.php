@@ -27,7 +27,7 @@ class ShipmentService
     public function generateShipmentNumber(): string
     {
         do {
-            $code = 'CT-' . date('Y') . '-' . strtoupper(Str::random(4)) . rand(10, 99);
+            $code = 'CT-'.date('Y').'-'.strtoupper(Str::random(4)).rand(10, 99);
         } while (Shipment::where('shipment_number', $code)->exists());
 
         return $code;
@@ -43,8 +43,8 @@ class ShipmentService
 
             $expectedDeparture = Carbon::parse($data['expected_departure']);
             $expectedArrival = Carbon::parse($data['expected_arrival']);
-            $estimatedArrival = isset($data['estimated_arrival']) 
-                ? Carbon::parse($data['estimated_arrival']) 
+            $estimatedArrival = isset($data['estimated_arrival'])
+                ? Carbon::parse($data['estimated_arrival'])
                 : $expectedArrival->copy();
 
             $shipment = Shipment::create([
@@ -64,9 +64,9 @@ class ShipmentService
             ]);
 
             // Add cargo items if provided
-            if (!empty($data['items']) && is_array($data['items'])) {
+            if (! empty($data['items']) && is_array($data['items'])) {
                 foreach ($data['items'] as $item) {
-                    if (!empty($item['item_description'])) {
+                    if (! empty($item['item_description'])) {
                         ShipmentItem::create([
                             'shipment_id' => $shipment->id,
                             'item_description' => $item['item_description'],
@@ -118,30 +118,30 @@ class ShipmentService
         $query = Shipment::query()
             ->with(['customer', 'carrier', 'origin', 'destination', 'latestTrackingEvent']);
 
-        if ($forUser && !$forUser->canManageShipments()) {
+        if ($forUser && ! $forUser->canManageShipments()) {
             $query->where('customer_id', $forUser->id);
         }
 
         // Search by shipment number or notes
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $term = trim($filters['search']);
             $query->where(function (Builder $q) use ($term) {
                 $q->where('shipment_number', 'LIKE', "%{$term}%")
-                  ->orWhere('notes', 'LIKE', "%{$term}%")
-                  ->orWhereHas('customer', function (Builder $cq) use ($term) {
-                      $cq->where('name', 'LIKE', "%{$term}%")
-                         ->orWhere('company_name', 'LIKE', "%{$term}%");
-                  });
+                    ->orWhere('notes', 'LIKE', "%{$term}%")
+                    ->orWhereHas('customer', function (Builder $cq) use ($term) {
+                        $cq->where('name', 'LIKE', "%{$term}%")
+                            ->orWhere('company_name', 'LIKE', "%{$term}%");
+                    });
             });
         }
 
         // Filter by status
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
         // Filter by carrier
-        if (!empty($filters['carrier_id'])) {
+        if (! empty($filters['carrier_id'])) {
             $query->where('carrier_id', $filters['carrier_id']);
         }
 
@@ -151,16 +151,16 @@ class ShipmentService
         }
 
         // Filter by date range
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $query->whereDate('expected_departure', '>=', $filters['date_from']);
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $query->whereDate('expected_arrival', '<=', $filters['date_to']);
         }
 
         // Sort
         $sortField = in_array($filters['sort_by'] ?? 'created_at', [
-            'created_at', 'shipment_number', 'status', 'expected_arrival', 'delay_hours'
+            'created_at', 'shipment_number', 'status', 'expected_arrival', 'delay_hours',
         ]) ? $filters['sort_by'] ?? 'created_at' : 'created_at';
 
         $sortDirection = strtolower($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
@@ -174,7 +174,7 @@ class ShipmentService
     public function getDashboardMetrics(?User $forUser = null): array
     {
         $baseQuery = Shipment::query();
-        if ($forUser && !$forUser->canManageShipments()) {
+        if ($forUser && ! $forUser->canManageShipments()) {
             $baseQuery->where('customer_id', $forUser->id);
         }
 
@@ -184,15 +184,15 @@ class ShipmentService
         $delayed = (clone $baseQuery)->where('is_delayed', true)->count();
 
         $openExceptions = ShipmentException::whereIn('status', [
-            ShipmentException::STATUS_OPEN, 
-            ShipmentException::STATUS_INVESTIGATING
+            ShipmentException::STATUS_OPEN,
+            ShipmentException::STATUS_INVESTIGATING,
         ])
-        ->when($forUser && !$forUser->canManageShipments(), function ($q) use ($forUser) {
-            $q->whereHas('shipment', function ($sq) use ($forUser) {
-                $sq->where('customer_id', $forUser->id);
-            });
-        })
-        ->count();
+            ->when($forUser && ! $forUser->canManageShipments(), function ($q) use ($forUser) {
+                $q->whereHas('shipment', function ($sq) use ($forUser) {
+                    $sq->where('customer_id', $forUser->id);
+                });
+            })
+            ->count();
 
         // On-time delivery rate KPI
         $completedCount = (clone $baseQuery)->whereIn('status', [Shipment::STATUS_DELIVERED])->count();
@@ -224,12 +224,12 @@ class ShipmentService
         // Shipments by carrier for Chart.js
         $carrierCounts = Carrier::query()
             ->withCount(['shipments' => function ($q) use ($forUser) {
-                if ($forUser && !$forUser->canManageShipments()) {
+                if ($forUser && ! $forUser->canManageShipments()) {
                     $q->where('customer_id', $forUser->id);
                 }
             }])
             ->get()
-            ->map(fn($c) => ['name' => $c->name, 'count' => $c->shipments_count]);
+            ->map(fn ($c) => ['name' => $c->name, 'count' => $c->shipments_count]);
 
         return [
             'total_shipments' => $totalShipments,

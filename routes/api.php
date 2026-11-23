@@ -27,11 +27,11 @@ Route::get('/public/track/{number}', function (string $number) {
         'origin:id,name,city,country,latitude,longitude',
         'destination:id,name,city,country,latitude,longitude',
         'items',
-        'trackingEvents' => fn($q) => $q->orderBy('event_time', 'asc'),
-        'exceptions' => fn($q) => $q->where('status', '!=', 'RESOLVED')
+        'trackingEvents' => fn ($q) => $q->orderBy('event_time', 'asc'),
+        'exceptions' => fn ($q) => $q->where('status', '!=', 'RESOLVED'),
     ])->where('shipment_number', $number)->first();
 
-    if (!$shipment) {
+    if (! $shipment) {
         return response()->json([
             'success' => false,
             'message' => "Shipment '{$number}' not found.",

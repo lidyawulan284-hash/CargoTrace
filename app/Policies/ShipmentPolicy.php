@@ -17,6 +17,7 @@ class ShipmentPolicy
         if ($user->canManageShipments()) {
             return true;
         }
+
         return $shipment->customer_id === $user->id;
     }
 
@@ -37,7 +38,7 @@ class ShipmentPolicy
 
     public function addTracking(User $user, Shipment $shipment): bool
     {
-        return $user->canManageShipments() && !$shipment->isTerminal();
+        return $user->canManageShipments() && ! $shipment->isTerminal();
     }
 
     public function manageExceptions(User $user, Shipment $shipment): bool

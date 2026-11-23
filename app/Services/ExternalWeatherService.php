@@ -56,7 +56,7 @@ class ExternalWeatherService
 
             Log::warning('Weather API returned non-200', ['status' => $response->status()]);
         } catch (Throwable $e) {
-            Log::info('Weather API fallback invoked: ' . $e->getMessage());
+            Log::info('Weather API fallback invoked: '.$e->getMessage());
         }
 
         // Graceful fallback (Slide 9: Tangani timeout, error response, dan data kosong)

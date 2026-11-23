@@ -14,13 +14,14 @@ class CarrierController extends Controller
     public function index(): View
     {
         $carriers = Carrier::withCount('shipments')->orderBy('name')->paginate(15);
+
         return view('carriers.index', compact('carriers'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             abort(403);
         }
 
