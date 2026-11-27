@@ -1,3 +1,7 @@
+/.agents
+/AGENTS.md
+/CLAUDE.md
+/boost.json
 /vendor
 node_modules
 .env
