@@ -2,12 +2,17 @@
 	"info": {
 		"_postman_id": "cargotrace-automotive-api-v2",
 		"name": "CargoTrace Automotive & Vehicle Visibility REST API",
-		"description": "Complete Laravel Sanctum REST API collection for CargoTrace — Global Automotive & Vehicle Shipment Visibility Platform (Ro-Ro Sea & Air Freight).",
+		"description": "Complete Laravel Sanctum REST API collection for CargoTrace — Global Automotive & Vehicle Shipment Visibility Platform (Ro-Ro Sea & Air Freight). Switch baseUrl between live deployment (https://cargo-trace-beige.vercel.app/api) and local development (http://127.0.0.1:8000/api).",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
 		{
 			"key": "baseUrl",
+			"value": "https://cargo-trace-beige.vercel.app/api",
+			"type": "string"
+		},
+		{
+			"key": "localBaseUrl",
 			"value": "http://127.0.0.1:8000/api",
 			"type": "string"
 		},
@@ -270,7 +275,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"event_type\": \"SUEZ_TRANSIT\",\n    \"status\": \"IN_TRANSIT\",\n    \"location_name\": \"Suez Canal Northbound Convoy\",\n    \"latitude\": 30.5852,\n    \"longitude\": 32.2654,\n    \"event_time\": \"2026-11-26 10:00:00\",\n    \"description\": \"MV Thermopylae cleared Suez northbound convoy with all CBU EV deck lashings verified.\"\n}"
+							"raw": "{\n    \"event_type\": \"SUEZ_TRANSIT\",\n    \"status\": \"IN_TRANSIT\",\n    \"location_name\": \"Suez Canal Northbound Convoy\",\n    \"latitude\": 30.5852,\n    \"longitude\": 32.2654,\n    \"event_time\": \"2026-11-28 10:00:00\",\n    \"description\": \"MV Thermopylae cleared Suez northbound convoy with all CBU EV deck lashings verified.\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/shipments/1/tracking", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "tracking"] }
 					}

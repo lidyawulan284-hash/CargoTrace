@@ -6,8 +6,14 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Leaflet.js](https://img.shields.io/badge/Leaflet.js-OpenStreetMap-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com)
 [![Sanctum API](https://img.shields.io/badge/Laravel-Sanctum%20REST%20API-0F172A?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com/docs/sanctum)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://cargo-trace-beige.vercel.app/)
 
 **CargoTrace** is a full-stack **Global Shipment Visibility & Tracking Platform** built with **Laravel** and **MySQL**, tailored for cross-border **automotive and vehicle logistics** (CBU Electric Vehicles, luxury cars, premium motorcycles, CKD powertrain kits, and motorsport prototypes) transported via **Ro-Ro car carriers** (*Wallenius Wilhelmsen*, *NYK Line*) and **air freight charters** (*Cargolux*, *Qatar Airways Cargo*) across Southeast Asia &harr; Europe corridors.
+
+> **Live Deployed Application**: [https://cargo-trace-beige.vercel.app/](https://cargo-trace-beige.vercel.app/)
+> **Public Tracking Portal**: [https://cargo-trace-beige.vercel.app/tracking](https://cargo-trace-beige.vercel.app/tracking)
+> **Health Check Endpoint**: [https://cargo-trace-beige.vercel.app/up](https://cargo-trace-beige.vercel.app/up)
+> **REST API Base URL**: `https://cargo-trace-beige.vercel.app/api`
 
 ---
 
@@ -261,31 +267,47 @@ Run the full PHPUnit test suite (configured with in-memory SQLite in `phpunit.xm
 php artisan test
 ```
 
-### Verified Test Coverage
-1. **`AuthenticationTest`**: Web & API login (valid/invalid), registration, `/api/user`, logout, unauthenticated `401` handling, demo account authentication, and demo login toggle.
-2. **`ShipmentApiAndAuthorizationTest`**: Customer tenant isolation (`403` across Web, API, and telematics endpoints), RBAC enforcement for operators/customers on admin-only resources (`DELETE /api/shipments/{id}`, `POST /api/carriers`, `POST /api/locations`, `/users`, `/audit-logs`), full shipment CRUD (`POST`, `PATCH`, `DELETE`, invalid arrival date `422`), exception API lifecycle (`GET`, `POST`, `PATCH` to `INVESTIGATING`/`RESOLVED`), unique VIN validation, server-side search/filter/sorting/pagination, and admin Carrier/Location CRUD with foreign-key-in-use protection.
-3. **`ShipmentLifecycleTest`**: Full FSM progression (`CREATED` &rarr; `BOOKED` &rarr; `PICKED_UP` &rarr; `IN_TRANSIT` &rarr; `DELIVERED`), rejection of skipped transitions (`422`), terminal status immutability (`DELIVERED` &rarr; `IN_TRANSIT` rejected with `422`), append-only chronological timestamp enforcement, and audit log verification.
-4. **`EtaDelayEvaluationTest`**: Deterministic `NONE`/`LOW`/`MEDIUM`/`HIGH` severity tiers, configurable `12h` SLA threshold, `explainDelay()` reason payload, exception lifecycle timestamps & notifications, `ExternalWeatherService` resilience (HTTP 500, empty payload, valid response, connection timeout), and `ExternalGeocodingService` resilience (HTTP 500, empty payload, valid response, connection timeout).
-5. **`LocaleSwitchTest`**: Session-persisted English (`en`) & Indonesian (`id`) locale switching.
+### Verified Test Evidence (`PHPUnit 12.5` on `PHP 8.3`)
+
+```text
+Tests:    49 passed (407 assertions)
+Duration: ~4.9s
+```
+
+| Test Suite | Tests | Key Verified Scenarios |
+| :--- | :---: | :--- |
+| **`Tests\Feature\AuthenticationTest`** | 16 | Web & API login (valid/invalid), registration, `/api/user`, logout & session invalidation, unauthenticated `401` handling, demo account login, and demo login toggle. |
+| **`Tests\Feature\ShipmentApiAndAuthorizationTest`** | 16 | Customer tenant isolation (`403` across Web, API, and telematics endpoints), RBAC enforcement for operators/customers on admin-only resources (`DELETE /api/shipments/{id}`, `POST /api/carriers`, `POST /api/locations`, `/users`, `/audit-logs`), full shipment CRUD (`POST`, `PATCH`, `DELETE`, invalid arrival date `422`), exception API lifecycle (`GET`, `POST`, `PATCH` to `INVESTIGATING`/`RESOLVED`), unique VIN validation, server-side search/filter/sorting/pagination, admin Carrier/Location CRUD with FK-in-use protection, role-protected `/api/geocode`, settings update, and audit log CSV export. |
+| **`Tests\Feature\ShipmentLifecycleTest`** | 5 | Full FSM progression (`CREATED` &rarr; `BOOKED` &rarr; `PICKED_UP` &rarr; `IN_TRANSIT` &rarr; `DELIVERED`), rejection of skipped transitions (`422`), terminal status immutability (`DELIVERED` &rarr; `IN_TRANSIT` rejected with `422`), append-only chronological timestamp enforcement, and audit log verification. |
+| **`Tests\Feature\EtaDelayEvaluationTest`** | 6 | Deterministic `NONE`/`LOW`/`MEDIUM`/`HIGH` severity tiers, configurable `12h` SLA threshold, `explainDelay()` reason payload, exception lifecycle timestamps & notifications, `ExternalWeatherService` resilience (HTTP 500, empty payload, valid response, timeout), and `ExternalGeocodingService` resilience (HTTP 500, empty payload, valid response, timeout). |
+| **`Tests\Feature\LocaleSwitchTest`** | 4 | Session & cookie-persisted English (`en`) & Indonesian (`id`) locale switching, invalid locale rejection, and multi-view translation rendering. |
+| **`Tests\Feature\ExampleTest` & `Tests\Unit\ExampleTest`** | 2 | Application boot smoke test and unit test harness sanity check. |
 
 ---
 
 ## Deployment Guide
 
-CargoTrace is production-ready for **Laravel Cloud**, **Railway**, **Render**, **Fly.io**, or any **Linux VPS (Nginx + PHP-FPM 8.3 + MySQL 8)**.
+**Live Deployment**: [https://cargo-trace-beige.vercel.app/](https://cargo-trace-beige.vercel.app/)
+
+CargoTrace is deployed on **Vercel** (`vercel-php@0.7.4` via `vercel.json` + `api/index.php`) and is also ready for **Laravel Cloud**, **Railway**, **Render**, **Fly.io**, or any **Linux VPS (Nginx + PHP-FPM 8.3 + MySQL 8)**.
 
 ### Production Deployment Checklist
-1. Set production environment variables (never commit `.env` to Git):
+1. Set production environment variables in your hosting dashboard (never commit `.env` or `APP_KEY` to Git):
    ```ini
    APP_ENV=production
    APP_DEBUG=false
-   APP_URL=https://your-domain.example
+   APP_URL=https://cargo-trace-beige.vercel.app
    APP_KEY= # generate via php artisan key:generate --show
    DB_CONNECTION=mysql
+   DB_HOST= # managed MySQL 8 host (e.g., Aiven / TiDB Cloud / Railway)
+   DB_PORT=3306
+   DB_DATABASE=cargotrace
+   DB_USERNAME=
+   DB_PASSWORD=
    DELAY_THRESHOLD_HOURS=12
    CARGOTRACE_DEMO_LOGIN_ENABLED=true # set false for non-demo production
    ```
-2. Install production PHP dependencies and optimize caches:
+2. Install production PHP dependencies and run database migrations & seeders:
    ```bash
    composer install --no-dev --optimize-autoloader
    php artisan migrate --force
@@ -294,7 +316,7 @@ CargoTrace is production-ready for **Laravel Cloud**, **Railway**, **Render**, *
    php artisan route:cache
    php artisan view:cache
    ```
-3. Verify health endpoint: `GET /up` returns HTTP `200`.
+3. Verify health endpoint: `GET /up` returns HTTP `200` (`{"status":"up"}`).
 
 ---
 
@@ -302,6 +324,7 @@ CargoTrace is production-ready for **Laravel Cloud**, **Railway**, **Render**, *
 
 ### Known Limitations
 - **Synthetic Operational Data**: Carrier schedules, VIN manifests, and tracking checkpoints are synthetic demonstration data rather than live carrier EDI/AIS/ADS-B feeds.
+- **Serverless Demo Storage Note**: On Vercel serverless deployments without an external managed MySQL instance configured (`DB_HOST`/`DB_URL`), the demo fallback copies a pre-seeded SQLite snapshot into ephemeral `/tmp` storage; connecting a managed MySQL 8 database is recommended for cross-invocation persistence in production.
 - **In-App Notifications Only**: Notifications are persisted in the database and displayed in the in-app notification center; outbound SMTP email/webhook delivery is not enabled by default (`MAIL_MAILER=log`).
 - **Rate Limits on Public Free Tile & Geocoding Providers**: OpenStreetMap tiles and Nominatim enforce fair-use rate limits; heavy production traffic requires a dedicated tile server or commercial geocoding API key.
 - **No Automated Delay Prediction**: Weather telemetry is displayed solely for operator awareness and does not automatically compute predictive arrival delays.
@@ -320,6 +343,7 @@ In accordance with open-source licensing and academic attribution standards, Car
 
 - **Laravel Framework (`laravel/framework`) & Laravel Sanctum (`laravel/sanctum`)** — MIT License, © Taylor Otwell & Laravel Contributors ([laravel.com](https://laravel.com)).
 - **Tailwind CSS** — MIT License, © Tailwind Labs ([tailwindcss.com](https://tailwindcss.com)).
+- **Lucide Icons** — ISC License, © Lucide Contributors ([lucide.dev](https://lucide.dev)).
 - **Leaflet.js** — BSD-2-Clause License, © Volodymyr Agafonkin ([leafletjs.com](https://leafletjs.com)).
 - **Map Data & Tiles**:
   - **OpenStreetMap** — Data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under ODbL.
@@ -327,5 +351,5 @@ In accordance with open-source licensing and academic attribution standards, Car
 - **Chart.js** — MIT License, © Chart.js Contributors ([chartjs.org](https://www.chartjs.org)).
 - **Open-Meteo Weather API** — Free non-commercial weather telemetry API ([open-meteo.com](https://open-meteo.com)).
 - **OpenStreetMap Nominatim** — Open-source geocoding service ([nominatim.org](https://nominatim.org)), queried with explicit `User-Agent` and bounded timeouts.
-- **Plus Jakarta Sans** — SIL Open Font License, loaded via Google Fonts.
+- **Plus Jakarta Sans & Inter** — SIL Open Font License, loaded via Google Fonts.
 - **PHPUnit & Laravel Pint** — Automated testing and PSR-12 / Laravel code style enforcement.
