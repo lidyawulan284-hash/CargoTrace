@@ -45,12 +45,34 @@ $vercelDefaults = [
     'CACHE_STORE' => 'array',
     'LOG_CHANNEL' => 'stderr',
     'SESSION_DRIVER' => 'cookie',
-    // Demo fallback key when APP_KEY is not configured in Vercel Dashboard
-    'APP_KEY' => 'base64:FjfOfMiUDdv4iiebYmRV+0ahEq0t3/pCAk2XUGKn+O4=',
 ];
 
 foreach ($vercelDefaults as $key => $value) {
     $setEnvDefault($key, $value);
+}
+
+// Prefer APP_KEY configured via Vercel Environment Variables.
+// Only if unset in zero-config demo mode, derive a runtime ephemeral key without committing any secret.
+if (
+    (getenv('APP_KEY') === false || getenv('APP_KEY') === '')
+    && (! isset($_ENV['APP_KEY']) || $_ENV['APP_KEY'] === '')
+    && (! isset($_SERVER['APP_KEY']) || $_SERVER['APP_KEY'] === '')
+) {
+    $runtimeSeed = (string) (
+        getenv('VERCEL_DEPLOYMENT_ID')
+        ?: getenv('VERCEL_GIT_COMMIT_SHA')
+        ?: ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? '')
+    );
+
+    if ($runtimeSeed !== '') {
+        $setEnvDefault('APP_KEY', 'base64:'.base64_encode(hash('sha256', $runtimeSeed, true)));
+    } else {
+        $ephemeralKeyPath = $storagePath.'/framework/.ephemeral_app_key';
+        if (! is_file($ephemeralKeyPath)) {
+            file_put_contents($ephemeralKeyPath, 'base64:'.base64_encode(random_bytes(32)));
+        }
+        $setEnvDefault('APP_KEY', trim((string) file_get_contents($ephemeralKeyPath)));
+    }
 }
 
 // Derive APP_URL from current Vercel host if not explicitly set
