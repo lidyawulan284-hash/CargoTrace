@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Carrier;
 use App\Models\Location;
 use App\Models\Shipment;
@@ -9,6 +10,7 @@ use App\Models\User;
 use App\Services\TrackingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ShipmentLifecycleTest extends TestCase
@@ -167,6 +169,76 @@ class ShipmentLifecycleTest extends TestCase
             'location_name' => 'Port of Rotterdam',
             'event_time' => now(),
             'description' => 'Attempting illegal backward status reversion.',
+        ], $this->operator);
+    }
+
+    public function test_api_rejects_reverting_delivered_shipment_to_in_transit_and_preserves_append_only_events(): void
+    {
+        Sanctum::actingAs($this->operator);
+
+        $shipment = Shipment::create([
+            'shipment_number' => 'CT-TERM-API-001',
+            'customer_id' => $this->operator->id,
+            'carrier_id' => $this->carrier->id,
+            'origin_id' => $this->origin->id,
+            'destination_id' => $this->destination->id,
+            'status' => Shipment::STATUS_DELIVERED,
+            'expected_departure' => now()->subDays(10),
+            'expected_arrival' => now()->subDay(),
+        ]);
+
+        $response = $this->postJson("/api/shipments/{$shipment->id}/tracking", [
+            'event_type' => 'IN_TRANSIT',
+            'status' => Shipment::STATUS_IN_TRANSIT,
+            'location_name' => 'Antwerp Automotive Terminal',
+            'event_time' => now()->toDateTimeString(),
+            'description' => 'Illegal backward transition via API.',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonValidationErrors('status');
+
+        $this->assertEquals(Shipment::STATUS_DELIVERED, $shipment->fresh()->status);
+        $this->assertEquals(0, $shipment->trackingEvents()->count());
+    }
+
+    public function test_tracking_events_are_append_only_chronological_and_audited(): void
+    {
+        $shipment = Shipment::create([
+            'shipment_number' => 'CT-APPEND-001',
+            'customer_id' => $this->operator->id,
+            'carrier_id' => $this->carrier->id,
+            'origin_id' => $this->origin->id,
+            'destination_id' => $this->destination->id,
+            'status' => Shipment::STATUS_CREATED,
+            'expected_departure' => now()->addDay(),
+            'expected_arrival' => now()->addDays(12),
+        ]);
+
+        $t1 = now()->addHours(2);
+        $this->trackingService->addEvent($shipment, [
+            'event_type' => 'BOOKED',
+            'status' => Shipment::STATUS_BOOKED,
+            'location_name' => 'Jakarta / Tanjung Priok Car Terminal',
+            'event_time' => $t1,
+            'description' => 'Ro-Ro booking confirmed.',
+        ], $this->operator);
+
+        $this->assertDatabaseHas(AuditLog::class, [
+            'action' => 'STATUS_TRANSITION',
+            'entity_type' => 'Shipment',
+            'entity_id' => $shipment->id,
+        ]);
+
+        // Reject backdated event preceding latest checkpoint
+        $this->expectException(ValidationException::class);
+        $this->trackingService->addEvent($shipment, [
+            'event_type' => 'PICKED_UP',
+            'status' => Shipment::STATUS_PICKED_UP,
+            'location_name' => 'Jakarta / Tanjung Priok Car Terminal',
+            'event_time' => $t1->copy()->subHour(),
+            'description' => 'Out-of-order timestamp event.',
         ], $this->operator);
     }
 }

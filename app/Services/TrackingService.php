@@ -17,43 +17,40 @@ class TrackingService
     ) {}
 
     /**
-     * Add a tracking event to a shipment with strict validation and business rules.
+     * Append a historical tracking event to a shipment with strict validation and business rules.
      */
     public function addEvent(Shipment $shipment, array $data, ?User $actor = null): TrackingEvent
     {
-        // Rule 1: Validate chronological order (Slide 7)
         $eventTime = Carbon::parse($data['event_time'] ?? now());
         $latestEvent = $shipment->trackingEvents()->latest('event_time')->first();
 
+        // Rule 1: Enforce strictly chronological append-only timeline
         if ($latestEvent && $eventTime->lessThan($latestEvent->event_time)) {
             throw ValidationException::withMessages([
                 'event_time' => ["Event timestamp cannot precede the most recent event ({$latestEvent->event_time->toDateTimeString()})."],
             ]);
         }
 
-        // Rule 2: Status transition validation (Slide 6)
+        // Rule 2: Enforce finite state machine transitions & immutable terminal states
         $targetStatus = $data['status'] ?? $shipment->status;
         $isTransitioning = ($targetStatus !== $shipment->status);
 
-        if ($isTransitioning) {
-            if ($shipment->isTerminal()) {
-                throw ValidationException::withMessages([
-                    'status' => ["Cannot transition shipment '{$shipment->shipment_number}' from terminal status '{$shipment->status}'."],
-                ]);
-            }
+        if ($shipment->isTerminal()) {
+            throw ValidationException::withMessages([
+                'status' => ["Cannot modify or revert shipment '{$shipment->shipment_number}' from terminal status '{$shipment->status}'."],
+            ]);
+        }
 
-            if (! $shipment->canTransitionTo($targetStatus)) {
-                $allowed = implode(', ', Shipment::TRANSITIONS[$shipment->status] ?? []);
-                throw ValidationException::withMessages([
-                    'status' => ["Invalid status transition from '{$shipment->status}' to '{$targetStatus}'. Allowed transitions: [{$allowed}]."],
-                ]);
-            }
+        if ($isTransitioning && ! $shipment->canTransitionTo($targetStatus)) {
+            $allowed = implode(', ', Shipment::TRANSITIONS[$shipment->status] ?? []);
+            throw ValidationException::withMessages([
+                'status' => ["Invalid status transition from '{$shipment->status}' to '{$targetStatus}'. Allowed transitions: [{$allowed}]."],
+            ]);
         }
 
         return DB::transaction(function () use ($shipment, $data, $actor, $eventTime, $targetStatus, $isTransitioning) {
             $oldStatus = $shipment->status;
 
-            // Create tracking event
             $event = TrackingEvent::create([
                 'shipment_id' => $shipment->id,
                 'event_type' => $data['event_type'] ?? 'TRANSIT_UPDATE',
@@ -64,11 +61,10 @@ class TrackingService
                 'longitude' => $data['longitude'] ?? null,
                 'event_time' => $eventTime,
                 'description' => $data['description'],
-                'is_exception' => $data['is_exception'] ?? false,
+                'is_exception' => (bool) ($data['is_exception'] ?? false),
                 'created_by' => $actor?->id,
             ]);
 
-            // Update shipment status if changed
             if ($isTransitioning) {
                 $shipment->status = $targetStatus;
 
@@ -82,27 +78,40 @@ class TrackingService
 
                 $shipment->save();
 
-                // Re-evaluate delay
                 $this->etaService->evaluateDelay($shipment);
 
-                // Send notification to customer
                 Notification::create([
                     'user_id' => $shipment->customer_id,
-                    'title' => "Shipment {$shipment->shipment_number} Status Updated",
-                    'message' => "Your shipment status is now '{$targetStatus}' at {$event->location_name}.",
+                    'title' => "Vehicle Shipment {$shipment->shipment_number} Status Updated",
+                    'message' => "Your consignment status transitioned to '{$targetStatus}' at {$event->location_name}.",
                     'type' => 'STATUS_UPDATE',
                     'link' => route('shipments.show', $shipment->id),
                 ]);
 
-                // Audit log
                 AuditLogService::log(
                     action: 'STATUS_TRANSITION',
                     entityType: 'Shipment',
                     entityId: $shipment->id,
                     oldValues: ['status' => $oldStatus],
-                    newValues: ['status' => $targetStatus, 'location' => $event->location_name]
+                    newValues: ['status' => $targetStatus, 'location' => $event->location_name],
+                    actor: $actor
                 );
             }
+
+            AuditLogService::log(
+                action: 'CREATE_TRACKING_EVENT',
+                entityType: 'TrackingEvent',
+                entityId: $event->id,
+                oldValues: null,
+                newValues: [
+                    'shipment_number' => $shipment->shipment_number,
+                    'event_type' => $event->event_type,
+                    'status' => $event->status,
+                    'location_name' => $event->location_name,
+                    'event_time' => $event->event_time->toIso8601String(),
+                ],
+                actor: $actor
+            );
 
             return $event;
         });

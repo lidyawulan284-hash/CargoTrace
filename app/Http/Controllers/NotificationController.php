@@ -20,15 +20,15 @@ class NotificationController extends Controller
 
     public function markAsRead(Notification $notification): RedirectResponse
     {
-        if ($notification->user_id === Auth::id()) {
-            $notification->markAsRead();
-        }
+        abort_unless($notification->user_id === Auth::id(), 403, 'Unauthorized.');
+
+        $notification->markAsRead();
 
         if ($notification->link) {
             return redirect($notification->link);
         }
 
-        return back()->with('success', 'Notification marked as read.');
+        return back()->with('success', __('ui.flash.notification_read'));
     }
 
     public function markAllAsRead(): RedirectResponse
@@ -37,6 +37,6 @@ class NotificationController extends Controller
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
-        return back()->with('success', 'All notifications marked as read.');
+        return back()->with('success', __('ui.flash.notifications_all_read'));
     }
 }

@@ -16,11 +16,11 @@ class ExceptionService
     ) {}
 
     /**
-     * Record a new shipment exception and update shipment ETA.
+     * Record a new automotive shipment exception (OPEN) and update shipment ETA.
      */
     public function createException(Shipment $shipment, array $data, ?User $actor = null): ShipmentException
     {
-        return DB::transaction(function () use ($shipment, $data) {
+        return DB::transaction(function () use ($shipment, $data, $actor) {
             $impactHours = (int) ($data['delay_impact_hours'] ?? 0);
 
             $exception = ShipmentException::create([
@@ -34,23 +34,20 @@ class ExceptionService
                 'detected_at' => $data['detected_at'] ?? now(),
             ]);
 
-            // Add delay impact to shipment ETA
             if ($impactHours > 0) {
                 $this->etaService->applyExceptionDelay($shipment, $impactHours, $data['description']);
             } else {
                 $this->etaService->evaluateDelay($shipment);
             }
 
-            // In-app alert for customer
             Notification::create([
                 'user_id' => $shipment->customer_id,
-                'title' => "Transit Exception Alert: {$exception->exception_type}",
-                'message' => "An incident was flagged on shipment {$shipment->shipment_number}: {$exception->description}. Estimated delay impact: +{$impactHours} hrs.",
+                'title' => "Vehicle Transit Exception: {$exception->exception_type}",
+                'message' => "Incident flagged on {$shipment->shipment_number}: {$exception->description} (+{$impactHours}h ETA impact).",
                 'type' => 'EXCEPTION_OPENED',
                 'link' => route('shipments.show', $shipment->id),
             ]);
 
-            // Audit log
             AuditLogService::log(
                 action: 'CREATE_EXCEPTION',
                 entityType: 'ShipmentException',
@@ -60,8 +57,10 @@ class ExceptionService
                     'shipment_number' => $shipment->shipment_number,
                     'type' => $exception->exception_type,
                     'severity' => $exception->severity,
+                    'status' => ShipmentException::STATUS_OPEN,
                     'impact_hours' => $impactHours,
-                ]
+                ],
+                actor: $actor
             );
 
             return $exception;
@@ -69,7 +68,49 @@ class ExceptionService
     }
 
     /**
-     * Resolve an open exception.
+     * Transition an OPEN exception to INVESTIGATING.
+     */
+    public function investigateException(ShipmentException $exception, ?string $notes = null, ?User $actor = null): ShipmentException
+    {
+        if ($exception->status !== ShipmentException::STATUS_OPEN) {
+            throw ValidationException::withMessages([
+                'status' => ["Only OPEN exceptions can move to INVESTIGATING (current: {$exception->status})."],
+            ]);
+        }
+
+        return DB::transaction(function () use ($exception, $notes, $actor) {
+            $oldStatus = $exception->status;
+
+            $exception->update([
+                'status' => ShipmentException::STATUS_INVESTIGATING,
+                'resolution_notes' => $notes ?: $exception->resolution_notes,
+            ]);
+
+            $shipment = $exception->shipment;
+
+            Notification::create([
+                'user_id' => $shipment->customer_id,
+                'title' => "Exception Under Investigation: {$shipment->shipment_number}",
+                'message' => "Operations team is actively investigating {$exception->exception_type} on your consignment.",
+                'type' => 'EXCEPTION_INVESTIGATING',
+                'link' => route('shipments.show', $shipment->id),
+            ]);
+
+            AuditLogService::log(
+                action: 'INVESTIGATE_EXCEPTION',
+                entityType: 'ShipmentException',
+                entityId: $exception->id,
+                oldValues: ['status' => $oldStatus],
+                newValues: ['status' => ShipmentException::STATUS_INVESTIGATING, 'notes' => $notes],
+                actor: $actor
+            );
+
+            return $exception->fresh();
+        });
+    }
+
+    /**
+     * Resolve an OPEN or INVESTIGATING exception.
      */
     public function resolveException(ShipmentException $exception, array $data, ?User $actor = null): ShipmentException
     {
@@ -86,15 +127,12 @@ class ExceptionService
                 'status' => ShipmentException::STATUS_RESOLVED,
                 'resolved_at' => now(),
                 'resolved_by' => $actor?->id,
-                'resolution_notes' => $data['resolution_notes'] ?? 'Exception cleared by operational team.',
+                'resolution_notes' => $data['resolution_notes'] ?? 'Exception cleared by automotive operations team.',
             ]);
 
             $shipment = $exception->shipment;
-
-            // Re-evaluate delay now that exception is cleared
             $this->etaService->evaluateDelay($shipment);
 
-            // Notify customer
             Notification::create([
                 'user_id' => $shipment->customer_id,
                 'title' => "Exception Resolved for {$shipment->shipment_number}",
@@ -108,10 +146,29 @@ class ExceptionService
                 entityType: 'ShipmentException',
                 entityId: $exception->id,
                 oldValues: ['status' => $oldStatus],
-                newValues: ['status' => ShipmentException::STATUS_RESOLVED, 'notes' => $exception->resolution_notes]
+                newValues: ['status' => ShipmentException::STATUS_RESOLVED, 'notes' => $exception->resolution_notes],
+                actor: $actor
             );
 
-            return $exception;
+            return $exception->fresh();
         });
+    }
+
+    /**
+     * Update exception lifecycle state uniformly (INVESTIGATING or RESOLVED).
+     */
+    public function updateStatus(ShipmentException $exception, string $targetStatus, array $data, ?User $actor = null): ShipmentException
+    {
+        return match ($targetStatus) {
+            ShipmentException::STATUS_INVESTIGATING => $this->investigateException(
+                $exception,
+                $data['resolution_notes'] ?? $data['notes'] ?? null,
+                $actor
+            ),
+            ShipmentException::STATUS_RESOLVED => $this->resolveException($exception, $data, $actor),
+            default => throw ValidationException::withMessages([
+                'status' => ["Invalid target exception status '{$targetStatus}'."],
+            ]),
+        };
     }
 }

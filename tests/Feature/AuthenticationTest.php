@@ -95,9 +95,9 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get('/');
         $response->assertStatus(200);
-        $response->assertSee('Login ke');
+        $response->assertSee('Sign in to');
         $response->assertSee('CargoTrace');
-        $response->assertSee('Masuk ke Akun');
+        $response->assertSee('Sign In to Account');
     }
 
     public function test_authenticated_user_visiting_root_is_redirected_to_dashboard(): void
@@ -169,7 +169,52 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get('/tracking');
         $response->assertStatus(200);
-        $response->assertSee('Lacak Paket');
+        $response->assertSee('Track Vehicles');
+    }
+
+    public function test_api_login_rejects_invalid_credentials(): void
+    {
+        User::factory()->create([
+            'email' => 'invalid_api@cargotrace.test',
+            'password' => bcrypt('correct_password'),
+            'role' => 'customer',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'invalid_api@cargotrace.test',
+            'password' => 'wrong_password',
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_api_register_user_profile_and_logout_flow(): void
+    {
+        $registerResponse = $this->postJson('/api/register', [
+            'name' => 'EV Importer Europe',
+            'email' => 'importer@euroev.test',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'company_name' => 'EuroEV Mobility BV',
+            'phone' => '+31 10 555 0199',
+        ]);
+
+        $registerResponse->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.user.role', 'customer');
+
+        $token = $registerResponse->json('data.token');
+
+        $this->withToken($token)
+            ->getJson('/api/user')
+            ->assertStatus(200)
+            ->assertJsonPath('data.email', 'importer@euroev.test');
+
+        $this->withToken($token)
+            ->postJson('/api/logout')
+            ->assertStatus(200)
+            ->assertJsonPath('success', true);
     }
 
     public function test_demo_accounts_can_login_with_default_password(): void
@@ -197,5 +242,17 @@ class AuthenticationTest extends TestCase
             $this->post('/logout');
             $this->assertGuest();
         }
+    }
+
+    public function test_demo_login_respects_configuration_flag(): void
+    {
+        $this->seed();
+
+        config(['cargotrace.demo_login_enabled' => false]);
+        $this->get('/demo-login/admin')->assertStatus(403);
+
+        config(['cargotrace.demo_login_enabled' => true]);
+        $this->get('/demo-login/admin')->assertRedirect('/dashboard');
+        $this->assertAuthenticated();
     }
 }

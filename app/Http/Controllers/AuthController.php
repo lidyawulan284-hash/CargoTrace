@@ -42,18 +42,18 @@ class AuthController extends Controller
             );
 
             $roleDashboardName = match ($user->role) {
-                'admin' => 'Admin Dashboard',
-                'operator' => 'Operator Dashboard',
-                'customer' => 'Customer Dashboard',
-                default => 'Dashboard',
+                'admin' => __('ui.dashboard.role_admin_badge'),
+                'operator' => __('ui.dashboard.role_operator_badge'),
+                'customer' => __('ui.dashboard.role_customer_badge'),
+                default => __('ui.dashboard.title'),
             };
 
             return redirect()->intended(route('dashboard'))
-                ->with('success', "Selamat datang, {$user->name}! Anda berhasil masuk ke {$roleDashboardName}.");
+                ->with('success', __('ui.flash.login_success', ['name' => $user->name, 'dashboard' => $roleDashboardName]));
         }
 
         return back()->withErrors([
-            'email' => 'Alamat email atau kata sandi tidak cocok dengan data kami.',
+            'email' => __('ui.flash.login_failed'),
         ])->onlyInput('email');
     }
 
@@ -97,7 +97,7 @@ class AuthController extends Controller
         );
 
         return redirect()->route('dashboard')
-            ->with('success', 'Account registered successfully! Welcome to CargoTrace.');
+            ->with('success', __('ui.flash.register_success'));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -106,7 +106,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('info', 'Sesi telah diakhiri. Anda telah keluar dari sistem.');
+        return redirect()->route('login')->with('info', __('ui.flash.logout_info'));
     }
 
     /**
@@ -114,6 +114,10 @@ class AuthController extends Controller
      */
     public function demoLogin(string $role): RedirectResponse
     {
+        if (! config('cargotrace.demo_login_enabled', true)) {
+            abort(403, 'Demo login is disabled in this environment.');
+        }
+
         $role = strtolower($role);
         $email = match ($role) {
             'admin' => 'admin@cargotrace.test',
@@ -127,17 +131,26 @@ class AuthController extends Controller
             Auth::login($user);
             request()->session()->regenerate();
 
+            AuditLogService::log(
+                action: 'DEMO_LOGIN',
+                entityType: 'User',
+                entityId: $user->id,
+                oldValues: null,
+                newValues: ['email' => $user->email, 'role' => $user->role],
+                actor: $user
+            );
+
             $roleDashboardName = match ($user->role) {
-                'admin' => 'Admin Dashboard (Akses Penuh)',
-                'operator' => 'Operator Dashboard (Operasional & Telematika)',
-                'customer' => 'Customer Dashboard (Kargo Pelanggan)',
-                default => 'Dashboard',
+                'admin' => __('ui.dashboard.role_admin_badge'),
+                'operator' => __('ui.dashboard.role_operator_badge'),
+                'customer' => __('ui.dashboard.role_customer_badge'),
+                default => __('ui.dashboard.title'),
             };
 
             return redirect()->route('dashboard')
-                ->with('success', "Berhasil masuk ke {$roleDashboardName} sebagai {$user->name}.");
+                ->with('success', __('ui.flash.demo_login_success', ['dashboard' => $roleDashboardName, 'name' => $user->name]));
         }
 
-        return redirect()->route('login')->with('error', 'Akun demo pengguna belum tersedia di database.');
+        return redirect()->route('login')->with('error', __('ui.flash.demo_user_missing'));
     }
 }

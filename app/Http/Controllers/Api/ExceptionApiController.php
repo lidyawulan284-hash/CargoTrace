@@ -15,9 +15,6 @@ class ExceptionApiController extends Controller
         protected ExceptionService $exceptionService
     ) {}
 
-    /**
-     * Get exceptions for a shipment (Slide 12)
-     */
     public function index(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
@@ -30,7 +27,7 @@ class ExceptionApiController extends Controller
             ], 404);
         }
 
-        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->can('view', $shipment)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -47,18 +44,9 @@ class ExceptionApiController extends Controller
         ]);
     }
 
-    /**
-     * Create a new exception for a shipment (Slide 12)
-     */
     public function store(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
-        if (! $user->canManageShipments()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden. Only Operators and Admins can log exceptions.',
-            ], 403);
-        }
 
         $shipment = Shipment::find($shipmentId);
         if (! $shipment) {
@@ -66,6 +54,13 @@ class ExceptionApiController extends Controller
                 'success' => false,
                 'message' => 'Shipment not found.',
             ], 404);
+        }
+
+        if (! $user->can('manageExceptions', $shipment)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden. Only Operators and Admins can log exceptions.',
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -86,20 +81,11 @@ class ExceptionApiController extends Controller
         ], 201);
     }
 
-    /**
-     * Resolve an exception (Slide 12)
-     */
     public function resolve(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (! $user->canManageShipments()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden. Only Operators and Admins can resolve exceptions.',
-            ], 403);
-        }
 
-        $exception = ShipmentException::find($id);
+        $exception = ShipmentException::with('shipment')->find($id);
         if (! $exception) {
             return response()->json([
                 'success' => false,
@@ -107,7 +93,32 @@ class ExceptionApiController extends Controller
             ], 404);
         }
 
+        if (! $user->can('manageExceptions', $exception->shipment)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden. Only Operators and Admins can manage exceptions.',
+            ], 403);
+        }
+
+        $targetStatus = $request->input('status', ShipmentException::STATUS_RESOLVED);
+
+        if ($targetStatus === ShipmentException::STATUS_INVESTIGATING) {
+            $validated = $request->validate([
+                'status' => ['required', 'in:INVESTIGATING'],
+                'resolution_notes' => ['nullable', 'string'],
+            ]);
+
+            $updated = $this->exceptionService->updateStatus($exception, ShipmentException::STATUS_INVESTIGATING, $validated, $user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Exception marked as INVESTIGATING.',
+                'data' => $updated,
+            ]);
+        }
+
         $validated = $request->validate([
+            'status' => ['sometimes', 'in:RESOLVED'],
             'resolution_notes' => ['required', 'string', 'min:5'],
         ]);
 

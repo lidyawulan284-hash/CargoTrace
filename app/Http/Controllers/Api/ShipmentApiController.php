@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Shipment;
-use App\Services\AuditLogService;
+use App\Models\ShipmentItem;
 use App\Services\ExternalWeatherService;
 use App\Services\ShipmentService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ShipmentApiController extends Controller
 {
@@ -17,11 +21,9 @@ class ShipmentApiController extends Controller
         protected ExternalWeatherService $weatherService
     ) {}
 
-    /**
-     * List shipments with server-side filtering, sorting and pagination (Slide 12, 13)
-     */
     public function index(Request $request): JsonResponse
     {
+        Gate::authorize('viewAny', Shipment::class);
         $user = $request->user();
 
         $shipments = $this->shipmentService->searchShipments(
@@ -42,13 +44,10 @@ class ShipmentApiController extends Controller
         ]);
     }
 
-    /**
-     * Store new shipment (Slide 12)
-     */
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (! $user->canManageShipments()) {
+        if (! $user->can('create', Shipment::class)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only Operators or Admins can create shipments.',
@@ -69,11 +68,15 @@ class ShipmentApiController extends Controller
             'estimated_arrival' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'items' => ['nullable', 'array'],
-            'items.*.item_description' => ['required', 'string', 'max:200'],
+            'items.*.vehicle_model' => ['nullable', 'string', 'max:150'],
+            'items.*.item_description' => ['required_without:items.*.vehicle_model', 'nullable', 'string', 'max:200'],
+            'items.*.vin_number' => ['nullable', 'string', 'max:50', 'distinct', 'unique:shipment_items,vin_number'],
+            'items.*.cargo_category' => ['nullable', 'string', Rule::in(ShipmentItem::CATEGORIES)],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.weight_kg' => ['required', 'numeric', 'min:0'],
-            'items.*.dimensions' => ['nullable', 'string'],
-            'items.*.hs_code' => ['nullable', 'string'],
+            'items.*.declared_value' => ['nullable', 'numeric', 'min:0'],
+            'items.*.dimensions' => ['nullable', 'string', 'max:60'],
+            'items.*.hs_code' => ['nullable', 'string', 'max:30'],
         ]);
 
         $shipment = $this->shipmentService->createShipment($validated, $user);
@@ -85,9 +88,6 @@ class ShipmentApiController extends Controller
         ], 201);
     }
 
-    /**
-     * Get shipment details with tracking events, items, and weather data (Slide 12)
-     */
     public function show(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
@@ -109,15 +109,13 @@ class ShipmentApiController extends Controller
             ], 404);
         }
 
-        // Authorization check (Slide 13)
-        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->can('view', $shipment)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. You do not have permission to view this shipment.',
             ], 403);
         }
 
-        // Fetch live weather for current coordinates (Slide 9)
         $coords = $shipment->getCurrentCoordinates();
         $weather = null;
         if ($coords) {
@@ -131,22 +129,14 @@ class ShipmentApiController extends Controller
         return response()->json([
             'success' => true,
             'data' => $shipment,
+            'summary' => $this->shipmentService->getShipmentSummary($shipment),
             'weather' => $weather,
         ]);
     }
 
-    /**
-     * Update shipment (Slide 12)
-     */
     public function update(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (! $user->canManageShipments()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden.',
-            ], 403);
-        }
 
         $shipment = Shipment::find($id);
         if (! $shipment) {
@@ -154,6 +144,13 @@ class ShipmentApiController extends Controller
                 'success' => false,
                 'message' => 'Shipment not found.',
             ], 404);
+        }
+
+        if (! $user->can('update', $shipment)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden.',
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -166,36 +163,31 @@ class ShipmentApiController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
-        $old = $shipment->toArray();
-        $shipment->update($validated);
+        $effectiveDeparture = isset($validated['expected_departure'])
+            ? Carbon::parse($validated['expected_departure'])
+            : Carbon::parse($shipment->expected_departure);
+        $effectiveArrival = isset($validated['expected_arrival'])
+            ? Carbon::parse($validated['expected_arrival'])
+            : Carbon::parse($shipment->expected_arrival);
 
-        AuditLogService::log(
-            action: 'UPDATE',
-            entityType: 'Shipment',
-            entityId: $shipment->id,
-            oldValues: $old,
-            newValues: $shipment->toArray()
-        );
+        if ($effectiveArrival->lessThanOrEqualTo($effectiveDeparture)) {
+            throw ValidationException::withMessages([
+                'expected_arrival' => ['The expected arrival must be a date after expected departure.'],
+            ]);
+        }
+
+        $updated = $this->shipmentService->updateShipment($shipment, $validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Shipment updated successfully.',
-            'data' => $shipment,
+            'data' => $updated,
         ]);
     }
 
-    /**
-     * Delete shipment (Slide 12 - Admin only)
-     */
     public function destroy(Request $request, int|string $id): JsonResponse
     {
         $user = $request->user();
-        if (! $user->isAdmin()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden. Admin privileges required to delete shipments.',
-            ], 403);
-        }
 
         $shipment = Shipment::find($id);
         if (! $shipment) {
@@ -205,16 +197,14 @@ class ShipmentApiController extends Controller
             ], 404);
         }
 
-        $old = $shipment->toArray();
-        $shipment->delete();
+        if (! $user->can('delete', $shipment)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden. Admin privileges required to delete shipments.',
+            ], 403);
+        }
 
-        AuditLogService::log(
-            action: 'DELETE',
-            entityType: 'Shipment',
-            entityId: (int) $id,
-            oldValues: $old,
-            newValues: null
-        );
+        $this->shipmentService->deleteShipment($shipment);
 
         return response()->json([
             'success' => true,

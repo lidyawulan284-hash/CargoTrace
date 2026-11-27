@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Location;
 use App\Models\Shipment;
 use App\Services\TrackingService;
 use Illuminate\Http\JsonResponse;
@@ -14,9 +15,6 @@ class TrackingApiController extends Controller
         protected TrackingService $trackingService
     ) {}
 
-    /**
-     * Get tracking history and timeline for a shipment (Slide 12)
-     */
     public function index(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
@@ -29,7 +27,7 @@ class TrackingApiController extends Controller
             ], 404);
         }
 
-        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
+        if (! $user->can('view', $shipment)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -71,18 +69,9 @@ class TrackingApiController extends Controller
         ]);
     }
 
-    /**
-     * Record a new tracking event (Slide 12)
-     */
     public function store(Request $request, int|string $shipmentId): JsonResponse
     {
         $user = $request->user();
-        if (! $user->canManageShipments()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden. Only Operators and Admins can add tracking events.',
-            ], 403);
-        }
 
         $shipment = Shipment::find($shipmentId);
         if (! $shipment) {
@@ -92,9 +81,16 @@ class TrackingApiController extends Controller
             ], 404);
         }
 
+        if (! $user->can('update', $shipment)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden. Only Operators and Admins can add tracking events.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'event_type' => ['required', 'string', 'max:50'],
-            'status' => ['required', 'string', 'in:CREATED,BOOKED,PICKED_UP,IN_TRANSIT,DELIVERED'],
+            'status' => ['required', 'string', 'in:CREATED,BOOKED,PICKED_UP,IN_TRANSIT,DELIVERED,CANCELLED'],
             'location_name' => ['required', 'string', 'max:150'],
             'location_id' => ['nullable', 'exists:locations,id'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -103,6 +99,14 @@ class TrackingApiController extends Controller
             'description' => ['required', 'string'],
             'is_exception' => ['nullable', 'boolean'],
         ]);
+
+        if ((empty($validated['latitude']) || empty($validated['longitude'])) && ! empty($validated['location_id'])) {
+            $loc = Location::find($validated['location_id']);
+            if ($loc) {
+                $validated['latitude'] = $loc->latitude;
+                $validated['longitude'] = $loc->longitude;
+            }
+        }
 
         $event = $this->trackingService->addEvent($shipment, $validated, $user);
 

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Hash;
 class AuthController extends Controller
 {
     /**
-     * User Registration (Slide 12)
+     * Public Customer Self-Registration
      */
     public function register(Request $request): JsonResponse
     {
@@ -20,16 +20,16 @@ class AuthController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role' => ['nullable', 'string', 'in:admin,operator,customer'],
             'phone' => ['nullable', 'string', 'max:30'],
             'company_name' => ['nullable', 'string', 'max:150'],
         ]);
 
+        // Self-registration always creates a customer account; elevated roles require Admin provisioning.
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'] ?? 'customer',
+            'role' => 'customer',
             'phone' => $validated['phone'] ?? null,
             'company_name' => $validated['company_name'] ?? null,
         ]);
@@ -41,7 +41,8 @@ class AuthController extends Controller
             entityType: 'User',
             entityId: $user->id,
             oldValues: null,
-            newValues: ['email' => $user->email, 'role' => $user->role]
+            newValues: ['email' => $user->email, 'role' => $user->role],
+            actor: $user
         );
 
         return response()->json([
@@ -62,7 +63,7 @@ class AuthController extends Controller
     }
 
     /**
-     * User Login (Slide 12)
+     * User Login
      */
     public function login(Request $request): JsonResponse
     {
@@ -87,7 +88,8 @@ class AuthController extends Controller
             entityType: 'User',
             entityId: $user->id,
             oldValues: null,
-            newValues: ['email' => $user->email]
+            newValues: ['email' => $user->email],
+            actor: $user
         );
 
         return response()->json([
@@ -108,7 +110,7 @@ class AuthController extends Controller
     }
 
     /**
-     * User Logout (Slide 12)
+     * User Logout
      */
     public function logout(Request $request): JsonResponse
     {
@@ -121,7 +123,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Get Current Authenticated User (Slide 12)
+     * Get Current Authenticated User
      */
     public function user(Request $request): JsonResponse
     {

@@ -23,7 +23,7 @@ class DashboardController extends Controller
 
         // Recent shipments
         $recentShipments = Shipment::query()
-            ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent'])
+            ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent', 'items', 'exceptions'])
             ->when(! $user->canManageShipments(), fn ($q) => $q->where('customer_id', $user->id))
             ->orderBy('created_at', 'desc')
             ->take(6)
@@ -31,7 +31,7 @@ class DashboardController extends Controller
 
         // Shipments available for interactive Leaflet dashboard telematics map
         $mapShipments = Shipment::query()
-            ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent'])
+            ->with(['carrier', 'origin', 'destination', 'customer', 'latestTrackingEvent', 'items'])
             ->when(! $user->canManageShipments(), fn ($q) => $q->where('customer_id', $user->id))
             ->orderBy('created_at', 'desc')
             ->take(15)

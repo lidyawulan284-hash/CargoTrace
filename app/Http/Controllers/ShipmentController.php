@@ -6,13 +6,15 @@ use App\Models\Carrier;
 use App\Models\Location;
 use App\Models\Shipment;
 use App\Models\ShipmentException;
+use App\Models\ShipmentItem;
 use App\Models\User;
-use App\Services\AuditLogService;
 use App\Services\ExternalWeatherService;
 use App\Services\ShipmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ShipmentController extends Controller
@@ -24,6 +26,7 @@ class ShipmentController extends Controller
 
     public function index(Request $request): View
     {
+        Gate::authorize('viewAny', Shipment::class);
         $user = Auth::user();
 
         $shipments = $this->shipmentService->searchShipments(
@@ -35,15 +38,28 @@ class ShipmentController extends Controller
         $carriers = Carrier::where('is_active', true)->orderBy('name')->get();
         $locations = Location::orderBy('name')->get();
 
-        return view('shipments.index', compact('shipments', 'carriers', 'locations'));
+        $statsQuery = Shipment::query();
+        if (! $user->canManageShipments()) {
+            $statsQuery->where('customer_id', $user->id);
+        }
+
+        $stats = [
+            'total' => (clone $statsQuery)->count(),
+            'booked' => (clone $statsQuery)->whereIn('status', [Shipment::STATUS_CREATED, Shipment::STATUS_BOOKED])->count(),
+            'in_transit' => (clone $statsQuery)->whereIn('status', [Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT])->count(),
+            'delivered' => (clone $statsQuery)->where('status', Shipment::STATUS_DELIVERED)->count(),
+            'exceptions' => (clone $statsQuery)->whereHas('exceptions', fn ($q) => $q->whereIn('status', [
+                ShipmentException::STATUS_OPEN,
+                ShipmentException::STATUS_INVESTIGATING,
+            ]))->count(),
+        ];
+
+        return view('shipments.index', compact('shipments', 'carriers', 'locations', 'stats'));
     }
 
     public function create(): View
     {
-        $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403, 'Unauthorized. Only logistics operators or administrators can create shipments.');
-        }
+        Gate::authorize('create', Shipment::class);
 
         $carriers = Carrier::where('is_active', true)->orderBy('name')->get();
         $locations = Location::orderBy('name')->get();
@@ -55,10 +71,8 @@ class ShipmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        Gate::authorize('create', Shipment::class);
         $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403);
-        }
 
         $validated = $request->validate([
             'shipment_number' => ['nullable', 'string', 'max:50', 'unique:shipments,shipment_number'],
@@ -73,27 +87,26 @@ class ShipmentController extends Controller
             'expected_arrival' => ['required', 'date', 'after:expected_departure'],
             'notes' => ['nullable', 'string'],
             'items' => ['nullable', 'array'],
+            'items.*.vehicle_model' => ['nullable', 'string', 'max:150'],
             'items.*.item_description' => ['nullable', 'string', 'max:200'],
+            'items.*.vin_number' => ['nullable', 'string', 'max:50', 'distinct', 'unique:shipment_items,vin_number'],
+            'items.*.cargo_category' => ['nullable', 'string', Rule::in(ShipmentItem::CATEGORIES)],
             'items.*.quantity' => ['nullable', 'integer', 'min:1'],
             'items.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
-            'items.*.dimensions' => ['nullable', 'string'],
-            'items.*.hs_code' => ['nullable', 'string'],
+            'items.*.declared_value' => ['nullable', 'numeric', 'min:0'],
+            'items.*.dimensions' => ['nullable', 'string', 'max:60'],
+            'items.*.hs_code' => ['nullable', 'string', 'max:30'],
         ]);
 
         $shipment = $this->shipmentService->createShipment($validated, $user);
 
         return redirect()->route('shipments.show', $shipment->id)
-            ->with('success', "Shipment {$shipment->shipment_number} successfully registered!");
+            ->with('success', __('ui.flash.shipment_created', ['number' => $shipment->shipment_number]));
     }
 
     public function show(Shipment $shipment): View
     {
-        $user = Auth::user();
-
-        // Customer access control (Slide 5, 13)
-        if (! $user->canManageShipments() && $shipment->customer_id !== $user->id) {
-            abort(403, 'Forbidden. You do not have access to this shipment.');
-        }
+        Gate::authorize('view', $shipment);
 
         $shipment->load([
             'customer',
@@ -105,7 +118,8 @@ class ShipmentController extends Controller
             'exceptions.resolver',
         ]);
 
-        // Weather integration for current location (Slide 9)
+        $summary = $this->shipmentService->getShipmentSummary($shipment);
+
         $coords = $shipment->getCurrentCoordinates();
         $weather = null;
         if ($coords) {
@@ -116,28 +130,26 @@ class ShipmentController extends Controller
             );
         }
 
-        // Prepare Map GeoJSON / points array for Leaflet.js
         $mapPoints = [];
-
-        // Origin point
         if ($shipment->origin) {
             $mapPoints[] = [
                 'type' => 'origin',
                 'name' => 'Origin: '.$shipment->origin->name,
                 'city' => $shipment->origin->city.', '.$shipment->origin->country,
+                'status' => 'ORIGIN_HUB',
                 'lat' => (float) $shipment->origin->latitude,
                 'lng' => (float) $shipment->origin->longitude,
                 'time' => $shipment->expected_departure->format('M d, Y H:i'),
             ];
         }
 
-        // Tracking waypoints
         foreach ($shipment->trackingEvents as $event) {
             if ($event->latitude && $event->longitude) {
                 $mapPoints[] = [
                     'type' => $event->is_exception ? 'exception' : 'waypoint',
                     'name' => $event->event_type.' - '.$event->location_name,
                     'city' => $event->location_name,
+                    'status' => $event->status,
                     'lat' => (float) $event->latitude,
                     'lng' => (float) $event->longitude,
                     'time' => $event->event_time->format('M d, Y H:i'),
@@ -146,12 +158,12 @@ class ShipmentController extends Controller
             }
         }
 
-        // Destination point
         if ($shipment->destination) {
             $mapPoints[] = [
                 'type' => 'destination',
                 'name' => 'Destination: '.$shipment->destination->name,
                 'city' => $shipment->destination->city.', '.$shipment->destination->country,
+                'status' => 'DESTINATION_HUB',
                 'lat' => (float) $shipment->destination->latitude,
                 'lng' => (float) $shipment->destination->longitude,
                 'time' => $shipment->expected_arrival->format('M d, Y H:i'),
@@ -164,6 +176,7 @@ class ShipmentController extends Controller
 
         return view('shipments.show', compact(
             'shipment',
+            'summary',
             'weather',
             'mapPoints',
             'allowedTransitions',
@@ -174,10 +187,7 @@ class ShipmentController extends Controller
 
     public function edit(Shipment $shipment): View
     {
-        $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403);
-        }
+        Gate::authorize('update', $shipment);
 
         $carriers = Carrier::where('is_active', true)->orderBy('name')->get();
         $locations = Location::orderBy('name')->get();
@@ -187,10 +197,7 @@ class ShipmentController extends Controller
 
     public function update(Request $request, Shipment $shipment): RedirectResponse
     {
-        $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403);
-        }
+        Gate::authorize('update', $shipment);
 
         $validated = $request->validate([
             'carrier_id' => ['required', 'exists:carriers,id'],
@@ -198,44 +205,24 @@ class ShipmentController extends Controller
             'total_weight_kg' => ['required', 'numeric', 'min:0'],
             'total_volume_cbm' => ['required', 'numeric', 'min:0'],
             'expected_departure' => ['required', 'date'],
-            'expected_arrival' => ['required', 'date'],
+            'expected_arrival' => ['required', 'date', 'after:expected_departure'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $old = $shipment->toArray();
-        $shipment->update($validated);
-
-        AuditLogService::log(
-            action: 'UPDATE',
-            entityType: 'Shipment',
-            entityId: $shipment->id,
-            oldValues: $old,
-            newValues: $shipment->toArray()
-        );
+        $this->shipmentService->updateShipment($shipment, $validated);
 
         return redirect()->route('shipments.show', $shipment->id)
-            ->with('success', 'Shipment details updated.');
+            ->with('success', __('ui.flash.shipment_updated'));
     }
 
     public function destroy(Shipment $shipment): RedirectResponse
     {
-        $user = Auth::user();
-        if (! $user->isAdmin()) {
-            abort(403, 'Unauthorized. Admin role required to delete shipments.');
-        }
+        Gate::authorize('delete', $shipment);
 
-        $old = $shipment->toArray();
-        $shipment->delete();
-
-        AuditLogService::log(
-            action: 'DELETE',
-            entityType: 'Shipment',
-            entityId: $shipment->id,
-            oldValues: $old,
-            newValues: null
-        );
+        $number = $shipment->shipment_number;
+        $this->shipmentService->deleteShipment($shipment);
 
         return redirect()->route('shipments.index')
-            ->with('success', "Shipment {$shipment->shipment_number} deleted successfully.");
+            ->with('success', __('ui.flash.shipment_deleted', ['number' => $number]));
     }
 }

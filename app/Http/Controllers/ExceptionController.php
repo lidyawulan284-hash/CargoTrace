@@ -8,6 +8,7 @@ use App\Services\ExceptionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class ExceptionController extends Controller
 {
@@ -17,10 +18,8 @@ class ExceptionController extends Controller
 
     public function store(Request $request, Shipment $shipment): RedirectResponse
     {
+        Gate::authorize('manageExceptions', $shipment);
         $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403);
-        }
 
         $validated = $request->validate([
             'exception_type' => ['required', 'string', 'in:'.implode(',', ShipmentException::TYPES)],
@@ -33,15 +32,32 @@ class ExceptionController extends Controller
         $this->exceptionService->createException($shipment, $validated, $user);
 
         return redirect()->route('shipments.show', $shipment->id)
-            ->with('warning', 'Shipment exception flagged. Estimated delay has been recalculated.');
+            ->with('warning', __('ui.flash.exception_flagged'));
+    }
+
+    public function investigate(Request $request, ShipmentException $exception): RedirectResponse
+    {
+        Gate::authorize('manageExceptions', $exception->shipment);
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'resolution_notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->exceptionService->investigateException(
+            $exception,
+            $validated['resolution_notes'] ?? 'Assigned to automotive logistics investigation desk.',
+            $user
+        );
+
+        return redirect()->route('shipments.show', $exception->shipment_id)
+            ->with('success', __('ui.flash.exception_investigating'));
     }
 
     public function resolve(Request $request, ShipmentException $exception): RedirectResponse
     {
+        Gate::authorize('manageExceptions', $exception->shipment);
         $user = Auth::user();
-        if (! $user->canManageShipments()) {
-            abort(403);
-        }
 
         $validated = $request->validate([
             'resolution_notes' => ['required', 'string', 'min:5'],
@@ -50,6 +66,6 @@ class ExceptionController extends Controller
         $this->exceptionService->resolveException($exception, $validated, $user);
 
         return redirect()->route('shipments.show', $exception->shipment_id)
-            ->with('success', 'Exception resolved and cleared from active alarms.');
+            ->with('success', __('ui.flash.exception_resolved'));
     }
 }

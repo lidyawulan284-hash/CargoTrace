@@ -10,38 +10,59 @@ class ExternalWeatherService
 {
     protected string $baseUrl;
 
+    protected string $apiKey;
+
+    protected int $timeoutSeconds;
+
     public function __construct()
     {
         $this->baseUrl = config('cargotrace.weather_api_url', 'https://api.open-meteo.com/v1/forecast');
+        $this->apiKey = (string) config('cargotrace.weather_api_key', '');
+        $this->timeoutSeconds = (int) config('cargotrace.weather_timeout_seconds', 4);
     }
 
     /**
      * Fetch current weather conditions for given coordinates.
-     * Uses Open-Meteo with fallback to synthetic safe response on failure.
+     * Handles timeouts, HTTP error responses, and empty payloads with graceful fallback.
+     *
+     * @return array<string, mixed>
      */
     public function getWeather(float $latitude, float $longitude, ?string $locationName = null): array
     {
         try {
-            $response = Http::timeout(4)
-                ->get($this->baseUrl, [
-                    'latitude' => $latitude,
-                    'longitude' => $longitude,
-                    'current' => 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m',
-                    'timezone' => 'auto',
-                ]);
+            $query = [
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'current' => 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m',
+                'timezone' => 'auto',
+            ];
+
+            if ($this->apiKey !== '') {
+                $query['apikey'] = $this->apiKey;
+            }
+
+            $response = Http::connectTimeout(3)
+                ->timeout($this->timeoutSeconds)
+                ->get($this->baseUrl, $query);
 
             if ($response->successful()) {
                 $data = $response->json();
-                $current = $data['current'] ?? [];
+                $current = is_array($data) ? ($data['current'] ?? null) : null;
 
-                $weatherCode = $current['weather_code'] ?? 0;
+                if (! is_array($current) || ! array_key_exists('temperature_2m', $current)) {
+                    Log::warning('Weather API returned empty or incomplete payload', ['location' => $locationName]);
+
+                    return $this->getFallbackWeather($latitude, $longitude, $locationName);
+                }
+
+                $weatherCode = (int) ($current['weather_code'] ?? 0);
                 $interpretation = $this->interpretWeatherCode($weatherCode);
 
                 return [
                     'status' => 'success',
                     'source' => 'Open-Meteo API',
                     'location' => $locationName ?? "{$latitude}, {$longitude}",
-                    'temperature' => $current['temperature_2m'] ?? 28,
+                    'temperature' => $current['temperature_2m'],
                     'temperature_unit' => '°C',
                     'humidity' => $current['relative_humidity_2m'] ?? 75,
                     'humidity_unit' => '%',
@@ -54,41 +75,46 @@ class ExternalWeatherService
                 ];
             }
 
-            Log::warning('Weather API returned non-200', ['status' => $response->status()]);
+            Log::warning('Weather API returned non-200 status', ['status' => $response->status()]);
         } catch (Throwable $e) {
             Log::info('Weather API fallback invoked: '.$e->getMessage());
         }
 
-        // Graceful fallback (Slide 9: Tangani timeout, error response, dan data kosong)
         return $this->getFallbackWeather($latitude, $longitude, $locationName);
     }
 
+    /**
+     * @return array{condition: string, icon: string, is_adverse: bool}
+     */
     protected function interpretWeatherCode(int $code): array
     {
         return match (true) {
             $code === 0 => ['condition' => 'Clear Sky', 'icon' => '☀️', 'is_adverse' => false],
-            in_array($code, [1, 2, 3]) => ['condition' => 'Mainly Clear to Overcast', 'icon' => '⛅', 'is_adverse' => false],
-            in_array($code, [45, 48]) => ['condition' => 'Fog / Low Visibility', 'icon' => '🌫️', 'is_adverse' => true],
-            in_array($code, [51, 53, 55, 61, 63, 65]) => ['condition' => 'Moderate Rain', 'icon' => '🌧️', 'is_adverse' => false],
-            in_array($code, [80, 81, 82]) => ['condition' => 'Heavy Rain Showers', 'icon' => '🌧️', 'is_adverse' => true],
-            in_array($code, [95, 96, 99]) => ['condition' => 'Thunderstorm / Gale Advisory', 'icon' => '⛈️', 'is_adverse' => true],
-            default => ['condition' => 'Fair Logistics Conditions', 'icon' => '🌤️', 'is_adverse' => false],
+            in_array($code, [1, 2, 3], true) => ['condition' => 'Mainly Clear to Overcast', 'icon' => '⛅', 'is_adverse' => false],
+            in_array($code, [45, 48], true) => ['condition' => 'Fog / Low Visibility', 'icon' => '🌫️', 'is_adverse' => true],
+            in_array($code, [51, 53, 55, 61, 63, 65], true) => ['condition' => 'Moderate Rain', 'icon' => '🌧️', 'is_adverse' => false],
+            in_array($code, [80, 81, 82], true) => ['condition' => 'Heavy Rain Showers', 'icon' => '🌧️', 'is_adverse' => true],
+            in_array($code, [95, 96, 99], true) => ['condition' => 'Thunderstorm / Gale Advisory', 'icon' => '⛈️', 'is_adverse' => true],
+            default => ['condition' => 'Fair Transit Conditions', 'icon' => '🌤️', 'is_adverse' => false],
         };
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function getFallbackWeather(float $latitude, float $longitude, ?string $locationName): array
     {
         return [
             'status' => 'cached_fallback',
-            'source' => 'Logistics Telemetry Safe Fallback',
+            'source' => 'Automotive Telemetry Safe Fallback',
             'location' => $locationName ?? "{$latitude}, {$longitude}",
-            'temperature' => 28.5,
+            'temperature' => 26.0,
             'temperature_unit' => '°C',
-            'humidity' => 70,
+            'humidity' => 68,
             'humidity_unit' => '%',
-            'wind_speed' => 14.2,
+            'wind_speed' => 14.0,
             'wind_speed_unit' => 'km/h',
-            'condition' => 'Normal Maritime Transit Conditions',
+            'condition' => 'Normal Ro-Ro & Air Freight Conditions',
             'icon' => '🚢',
             'is_adverse' => false,
             'timestamp' => now()->toIso8601String(),

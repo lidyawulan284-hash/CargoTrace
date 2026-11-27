@@ -1,8 +1,8 @@
 {
 	"info": {
-		"_postman_id": "cargotrace-api-v1",
-		"name": "CargoTrace REST API Collection",
-		"description": "Complete REST API collection for CargoTrace Global Shipment Visibility & Tracking Platform (Web Programming 2 UAS Final Project).",
+		"_postman_id": "cargotrace-automotive-api-v2",
+		"name": "CargoTrace Automotive & Vehicle Visibility REST API",
+		"description": "Complete Laravel Sanctum REST API collection for CargoTrace — Global Automotive & Vehicle Shipment Visibility Platform (Ro-Ro Sea & Air Freight).",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -19,7 +19,7 @@
 	],
 	"item": [
 		{
-			"name": "1. Authentication",
+			"name": "1. Authentication (Sanctum)",
 			"item": [
 				{
 					"name": "POST Register Customer",
@@ -31,13 +31,42 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Jane Doe\",\n    \"email\": \"jane.doe@shipper.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"company_name\": \"Apex Trans Global Ltd\",\n    \"phone\": \"+628123456789\"\n}"
+							"raw": "{\n    \"name\": \"Hendrik van Dijk\",\n    \"email\": \"hendrik@euroev-imports.test\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"company_name\": \"EuroEV Mobility Group BV\",\n    \"phone\": \"+31 10 882 4401\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/register", "host": ["{{baseUrl}}"], "path": ["register"] }
 					}
 				},
 				{
-					"name": "POST Login (Operator)",
+					"name": "POST Login (Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@cargotrace.test\",\n    \"password\": \"password\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+					}
+				},
+				{
+					"name": "POST Login (Logistics Operator)",
 					"event": [
 						{
 							"listen": "test",
@@ -61,6 +90,35 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"operator@cargotrace.test\",\n    \"password\": \"password\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+					}
+				},
+				{
+					"name": "POST Login (Customer)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"customer@cargotrace.test\",\n    \"password\": \"password\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
 					}
@@ -90,29 +148,29 @@
 			]
 		},
 		{
-			"name": "2. Public Quick Tracking",
+			"name": "2. Public Vehicle Tracking",
 			"item": [
 				{
-					"name": "GET Public Tracking by Number",
+					"name": "GET Public Tracking by Shipment Number",
 					"request": {
 						"method": "GET",
 						"header": [
 							{ "key": "Accept", "value": "application/json" }
 						],
 						"url": {
-							"raw": "{{baseUrl}}/public/track/CT-2026-SEA-8841",
+							"raw": "{{baseUrl}}/public/track/CT-2026-RORO-8841",
 							"host": ["{{baseUrl}}"],
-							"path": ["public", "track", "CT-2026-SEA-8841"]
+							"path": ["public", "track", "CT-2026-RORO-8841"]
 						}
 					}
 				}
 			]
 		},
 		{
-			"name": "3. Shipments",
+			"name": "3. Vehicle Shipments",
 			"item": [
 				{
-					"name": "GET All Shipments (Filtered & Paginated)",
+					"name": "GET Shipments (Filtered & Paginated)",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -120,18 +178,19 @@
 							{ "key": "Authorization", "value": "Bearer {{token}}" }
 						],
 						"url": {
-							"raw": "{{baseUrl}}/shipments?status=IN_TRANSIT&per_page=10",
+							"raw": "{{baseUrl}}/shipments?status=IN_TRANSIT&is_delayed=1&per_page=10",
 							"host": ["{{baseUrl}}"],
 							"path": ["shipments"],
 							"query": [
 								{ "key": "status", "value": "IN_TRANSIT" },
+								{ "key": "is_delayed", "value": "1" },
 								{ "key": "per_page", "value": "10" }
 							]
 						}
 					}
 				},
 				{
-					"name": "POST Create New Shipment",
+					"name": "POST Create Automotive Shipment with VIN Items",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -141,13 +200,13 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"shipment_number\": \"CT-2026-POSTMAN-01\",\n    \"customer_id\": 3,\n    \"carrier_id\": 1,\n    \"origin_id\": 1,\n    \"destination_id\": 3,\n    \"cargo_type\": \"ELECTRONICS\",\n    \"total_weight_kg\": 12500,\n    \"total_volume_cbm\": 24.5,\n    \"expected_departure\": \"2026-11-05 08:00:00\",\n    \"expected_arrival\": \"2026-11-20 18:00:00\",\n    \"notes\": \"Test creation via Postman collection.\",\n    \"items\": [\n        {\n            \"item_description\": \"Smart Sensor Modules\",\n            \"quantity\": 2000,\n            \"weight_kg\": 6200,\n            \"hs_code\": \"8543.70\"\n        }\n    ]\n}"
+							"raw": "{\n    \"shipment_number\": \"CT-2026-RORO-9901\",\n    \"customer_id\": 3,\n    \"carrier_id\": 1,\n    \"origin_id\": 1,\n    \"destination_id\": 4,\n    \"cargo_type\": \"CBU_EV\",\n    \"total_weight_kg\": 8400,\n    \"total_volume_cbm\": 62.5,\n    \"expected_departure\": \"2026-11-28 08:00:00\",\n    \"expected_arrival\": \"2026-12-16 18:00:00\",\n    \"notes\": \"Ro-Ro deck 4 booking with UN3480 EV battery compliance certificate.\",\n    \"items\": [\n        {\n            \"vehicle_model\": \"Hyundai Ioniq 5 CBU\",\n            \"item_description\": \"Hyundai Ioniq 5 CBU AWD EU Spec\",\n            \"vin_number\": \"KMHKN81EFPU990101\",\n            \"cargo_category\": \"CBU_EV\",\n            \"quantity\": 4,\n            \"weight_kg\": 8400,\n            \"declared_value\": 216000,\n            \"hs_code\": \"8703.80.10\"\n        }\n    ]\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/shipments", "host": ["{{baseUrl}}"], "path": ["shipments"] }
 					}
 				},
 				{
-					"name": "GET Shipment Details by ID",
+					"name": "GET Shipment Details + Weather + Summary",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -158,7 +217,7 @@
 					}
 				},
 				{
-					"name": "PATCH Update Shipment",
+					"name": "PATCH Update Shipment Metadata",
 					"request": {
 						"method": "PATCH",
 						"header": [
@@ -168,7 +227,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"notes\": \"Updated operational notes via Postman.\"\n}"
+							"raw": "{\n    \"notes\": \"Updated Ro-Ro deck inspection dossier and EU homologation clearance reference.\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/shipments/1", "host": ["{{baseUrl}}"], "path": ["shipments", "1"] }
 					}
@@ -187,10 +246,10 @@
 			]
 		},
 		{
-			"name": "4. Tracking Checkpoints",
+			"name": "4. Tracking Checkpoints (Append-Only FSM)",
 			"item": [
 				{
-					"name": "GET Tracking Timeline for Shipment",
+					"name": "GET Tracking Timeline & Coordinates",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -201,7 +260,7 @@
 					}
 				},
 				{
-					"name": "POST Log Checkpoint Event",
+					"name": "POST Append Tracking Checkpoint",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -211,7 +270,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"event_type\": \"IN_TRANSIT\",\n    \"status\": \"IN_TRANSIT\",\n    \"location_name\": \"Indian Ocean Transit Checkpoint\",\n    \"latitude\": 5.823,\n    \"longitude\": 80.124,\n    \"event_time\": \"2026-11-01 12:00:00\",\n    \"description\": \"Vessel steaming at 19 knots in fair weather conditions.\"\n}"
+							"raw": "{\n    \"event_type\": \"SUEZ_TRANSIT\",\n    \"status\": \"IN_TRANSIT\",\n    \"location_name\": \"Suez Canal Northbound Convoy\",\n    \"latitude\": 30.5852,\n    \"longitude\": 32.2654,\n    \"event_time\": \"2026-11-26 10:00:00\",\n    \"description\": \"MV Thermopylae cleared Suez northbound convoy with all CBU EV deck lashings verified.\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/shipments/1/tracking", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "tracking"] }
 					}
@@ -219,7 +278,7 @@
 			]
 		},
 		{
-			"name": "5. Incident & Exceptions Management",
+			"name": "5. Automotive Exceptions Lifecycle",
 			"item": [
 				{
 					"name": "GET Exceptions for Shipment",
@@ -233,7 +292,7 @@
 					}
 				},
 				{
-					"name": "POST Log Shipment Exception",
+					"name": "POST Flag Automotive Exception (OPEN)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -243,13 +302,13 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"exception_type\": \"PORT_CONGESTION\",\n    \"severity\": \"MEDIUM\",\n    \"description\": \"Berth congestion delayed unloading by 12 hours.\",\n    \"delay_impact_hours\": 12\n}"
+							"raw": "{\n    \"exception_type\": \"PORT_CONGESTION\",\n    \"severity\": \"MEDIUM\",\n    \"description\": \"Antrean sandar kapal Ro-Ro di pelabuhan transit\",\n    \"delay_impact_hours\": 14\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/shipments/1/exceptions", "host": ["{{baseUrl}}"], "path": ["shipments", "1", "exceptions"] }
 					}
 				},
 				{
-					"name": "PATCH Resolve Exception",
+					"name": "PATCH Mark Exception INVESTIGATING",
 					"request": {
 						"method": "PATCH",
 						"header": [
@@ -259,7 +318,23 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"resolution_notes\": \"Customs release granted following secondary cargo inspection.\"\n}"
+							"raw": "{\n    \"status\": \"INVESTIGATING\",\n    \"resolution_notes\": \"Coordinating with EU customs broker for UN3480 lithium battery test summary verification.\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/exceptions/1", "host": ["{{baseUrl}}"], "path": ["exceptions", "1"] }
+					}
+				},
+				{
+					"name": "PATCH Mark Exception RESOLVED",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"RESOLVED\",\n    \"resolution_notes\": \"EU Homologation & UN3480 lithium battery compliance cleared; consignment released for final voyage.\"\n}"
 						},
 						"url": { "raw": "{{baseUrl}}/exceptions/1", "host": ["{{baseUrl}}"], "path": ["exceptions", "1"] }
 					}
@@ -267,7 +342,7 @@
 			]
 		},
 		{
-			"name": "6. Master Data (Carriers & Locations)",
+			"name": "6. Master Data (Carriers & Automotive Hubs)",
 			"item": [
 				{
 					"name": "GET Carriers List",
@@ -281,6 +356,22 @@
 					}
 				},
 				{
+					"name": "POST Create Carrier (Admin Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"HOEGH\",\n    \"name\": \"Hoegh Autoliners\",\n    \"service_type\": \"RORO_SEA\",\n    \"contact_email\": \"roro@hoegh.com\",\n    \"contact_phone\": \"+47 21 03 90 00\",\n    \"website\": \"https://www.hoeghautoliners.com\"\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/carriers", "host": ["{{baseUrl}}"], "path": ["carriers"] }
+					}
+				},
+				{
 					"name": "GET Locations List",
 					"request": {
 						"method": "GET",
@@ -289,6 +380,40 @@
 							{ "key": "Authorization", "value": "Bearer {{token}}" }
 						],
 						"url": { "raw": "{{baseUrl}}/locations", "host": ["{{baseUrl}}"], "path": ["locations"] }
+					}
+				},
+				{
+					"name": "POST Create Automotive Hub Location (Admin Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"DEBRV\",\n    \"name\": \"Bremerhaven Auto Terminal\",\n    \"type\": \"PORT\",\n    \"address\": \"Senator-Borttscheller-Str. 1, Bremerhaven\",\n    \"city\": \"Bremerhaven\",\n    \"country\": \"Germany\",\n    \"country_code\": \"DE\",\n    \"latitude\": 53.5625,\n    \"longitude\": 8.5567\n}"
+						},
+						"url": { "raw": "{{baseUrl}}/locations", "host": ["{{baseUrl}}"], "path": ["locations"] }
+					}
+				},
+				{
+					"name": "GET Geocode Hub Coordinates (Nominatim External API)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Accept", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"url": {
+							"raw": "{{baseUrl}}/geocode?q=Rotterdam, Netherlands",
+							"host": ["{{baseUrl}}"],
+							"path": ["geocode"],
+							"query": [
+								{ "key": "q", "value": "Rotterdam, Netherlands" }
+							]
+						}
 					}
 				}
 			]
